@@ -1,0 +1,6 @@
+{
+  "name": "FlowLog Desktop",
+  "identifier": "com.example.flowlogdesktop",
+  "version": "0.1.0",
+  "out": "build"
+}

@@ -1,0 +1,7 @@
+# 构建文件
+/build/
+/.mygo/
+mygo_windows_*.syso
+
+# 官方自带skill
+.agents
