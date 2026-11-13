@@ -1,11 +1,14 @@
 # <img src="resources/icon.png" width=25> 流记 · FlowLog
 
-> 一个记录每日学习情况的桌面应用：按科目、章节与要点组织笔记，附带当天待办。
+一个记录每日学习情况的桌面应用：按科目、章节与要点组织笔记，附带当天待办。
+
+该项目仅作为本地小工具，见谅。使用 DeepSeek Harness 配合 DeepSeek V4.1 Flash 模型开发。
 
 ![MyGo](https://img.shields.io/badge/MyGo-v0.9.0-c2410c)
 ![Go](https://img.shields.io/badge/Go-1.27-00add8)
 ![License](https://img.shields.io/badge/license-MIT-2f855a)
 ![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-444)
+![Agent](https://img.shields.io/badge/Agent-DeepSeek_Harness-blue)
 
 流记使用 [MyGo](https://mygo.run) 的**原生 UI 模式**编写：界面由 Go 代码直接描述，
 由 MyGo 在 GPU 上绘制（Windows 使用 Direct3D 11，macOS 使用 Metal，Linux 使用 OpenGL），
@@ -32,7 +35,7 @@
 | -------------------------------------- | -------------------------------------- |
 | ![设置](docs/screenshots/settings.png) | ![写日记](docs/screenshots/editor.png) |
 
-深色主题：`docs/screenshots/home-dark.png`、`docs/screenshots/diary-dark.png`。
+浅色有点丑，后续再调整。
 
 ## 环境要求
 
