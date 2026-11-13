@@ -1,6 +1,13 @@
 {
-  "name": "FlowLog Desktop",
-  "identifier": "com.example.flowlogdesktop",
-  "version": "0.2.0",
-  "out": "build"
+  "name": "FlowLog",
+  "identifier": "com.mixsu.flowlog",
+  "version": "0.3.0",
+  "out": "build",
+  "updates": {
+    "publicKey": "yYvCqRn9LVIGFZfFPgwonPGR75PyEncvXXvowE5mFeI=",
+    "github": "coder-xmtx/FlowLog-Desktop",
+    "tagPrefix": "v",
+    "deltas": 3,
+    "changelog": "CHANGELOG.md"
+  }
 }

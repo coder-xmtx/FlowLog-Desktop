@@ -20,7 +20,7 @@ func (app *App) todo(c *ui.Context) {
 	if total > 0 {
 		subtitle = fmt.Sprintf("已完成 %d / %d", done, total)
 		if done == total {
-			subtitle = "今天的待办都完成了"
+			subtitle = "今天的待办已完成"
 		}
 	}
 
@@ -41,14 +41,14 @@ func (app *App) todo(c *ui.Context) {
 			add.Disabled(strings.TrimSpace(app.todoDraft) == "")
 		})
 
-		// 进度条
+		// 进度
 		if total > 0 {
-			ui.Row(c).Gap(12).AlignItems(ui.Center).Padding(0, 32, 6).Children(func() {
+			ui.Row(c).Gap(12).AlignItems(ui.Center).Padding(0, 32, 8).Children(func() {
 				ui.Progress(c, float64(done)/float64(total)).Grow(1).Height(5)
 				ui.Textf(c, "%d / %d", done, total).FontSize(11.5).TextColor(t.TextMuted)
 				if done > 0 {
 					ui.Button(c, "清除已完成").FontSize(11.5).
-						Tooltip("把已完成的待办收走，可撤销").
+						Tooltip("移除已完成的待办，可撤销").
 						OnClick(app.clearDone)
 				}
 			})
@@ -60,11 +60,9 @@ func (app *App) todo(c *ui.Context) {
 			return
 		}
 
-		// 列表放在一张卡片里：待办之间靠留白和 hover 底色分隔，
-		// 而不是干巴巴地浮在页面背景上。卡片贴着内容的高度，
-		// 待办多了才滚动（高度上限跟着窗口走）。
+		// 列表放在一张卡片里，卡片贴着内容高度；待办多了才滚动。
 		_, windowHeight := c.Size()
-		maxList := windowHeight - 260
+		maxList := windowHeight - 270
 		if maxList < 160 {
 			maxList = 160
 		}
@@ -82,8 +80,11 @@ func (app *App) todo(c *ui.Context) {
 				}
 				app.todoRow(c, app.todoRows[i])
 			}).MaxHeight(maxList).Padding(6, 4).Radius(12).
-				Background(t.Background).Border(1, t.Border).
-				Shadow(0, 1, 2, 0, ui.RGBA(0, 0, 0, 0.04)).Clip()
+				Background(cardBG(t)).Border(1, t.Border).
+				Shadow(0, 1, 2, 0, ui.RGBA(0, 0, 0, 0.04)).Clip().
+				// 只保留竖向滚动条：行内容永远不该横向溢出，
+				// 否则悬停时会出现一条多余的横向滚动条。
+				ScrollbarAxes(false, true)
 
 			ui.Text(c, model.DisplayDateFull(app.today)+" · "+model.Weekday(model.MustDate(app.today))).
 				FontSize(11).TextColor(t.TextMuted).Padding(10, 4, 0)
@@ -119,20 +120,22 @@ func (app *App) todoEmptyState(c *ui.Context, total int) {
 	switch {
 	case total == 0:
 		emptyState(c, iconInbox, "今天还没有待办",
-			"把今天要做的事写一句在上面：复习哪一节、做哪套题、几点开始。",
-			"", nil)
+			"在上面的输入框里写下要做的事，回车即可添加。", "", nil)
 	case app.todoFilter == 1:
-		emptyState(c, iconCheckCircle, "进行中的待办都清空了",
-			"该做的都做了，剩下的时间留给自己。", "看已完成的", func() { app.todoFilter = 2 })
+		emptyState(c, iconCheckCircle, "进行中的待办已清空",
+			"剩余的待办会显示在这里。", "查看已完成", func() { app.todoFilter = 2 })
 	case app.todoFilter == 2:
-		emptyState(c, iconClock, "还没有完成的待办",
-			"完成一项之后，它会出现在这里。", "看全部", func() { app.todoFilter = 0 })
+		emptyState(c, iconClock, "还没有已完成的待办",
+			"完成一项之后，它会出现在这里。", "查看全部", func() { app.todoFilter = 0 })
 	default:
-		emptyState(c, iconInbox, "没有匹配的待办", "", "看全部", func() { app.todoFilter = 0 })
+		emptyState(c, iconInbox, "没有匹配的待办", "", "查看全部", func() { app.todoFilter = 0 })
 	}
 }
 
 // todoRow 是一条待办。
+//
+// 行高固定为 34：鼠标移上去时右侧的删除按钮出现，如果行高跟着内容变，
+// 列表会因为内容变高而冒出滚动条，鼠标一滑就闪。
 func (app *App) todoRow(c *ui.Context, index int) {
 	t := c.Theme()
 	ti := app.dayIndex(app.today)
@@ -141,14 +144,14 @@ func (app *App) todoRow(c *ui.Context, index int) {
 	}
 	todo := &app.days[ti].Todos[index]
 
-	row := ui.Row(c).Key("todo-row-"+todo.ID).Gap(10).AlignItems(ui.Center).
-		Padding(7, 10).Radius(9)
+	row := ui.Row(c).Key("todo-row-"+todo.ID).Height(36).Gap(10).
+		AlignItems(ui.Center).Padding(0, 10).Radius(8)
 	row.Children(func() {
 		cb := ui.Checkbox(c.Key("todo-cb-"+todo.ID), &todo.Done, "").Label(todo.Text)
 		cb.Tooltip("完成 / 取消完成")
 		cb.OnChange(func() { app.persist(app.today) })
 
-		text := ui.Text(c, todo.Text).FontSize(13).Grow(1).LineHeight(1.4)
+		text := ui.Text(c, todo.Text).FontSize(13).Grow(1).SingleLine()
 		if todo.Done {
 			text.TextColor(t.TextMuted).Strikethrough()
 		}
@@ -157,9 +160,11 @@ func (app *App) todoRow(c *ui.Context, index int) {
 			ui.Text(c, todo.At).FontSize(11).TextColor(t.TextMuted)
 		}
 		if row.Hovered() {
-			iconButton(c, "todo-del-"+todo.ID, "删除这条待办", iconTrash, func() {
-				app.deleteTodo(todo.ID)
-			})
+			del := ui.Button(c.Key("todo-del-"+todo.ID), "").
+				Label("删除这条待办").Tooltip("删除").
+				Size(24, 24).Padding(0).Radius(6).MinWidth(0)
+			del.Children(func() { ui.Icon(c, iconTrash).FontSize(13) })
+			del.OnClick(func() { app.deleteTodo(todo.ID) })
 		}
 	})
 	if row.Hovered() {
@@ -246,7 +251,7 @@ func (app *App) deleteTodo(id string) {
 	}
 }
 
-// clearDone 收走已完成的待办，并给一次撤销的机会。
+// clearDone 移除已完成的待办，并给一次撤销的机会。
 func (app *App) clearDone() {
 	ti := app.dayIndex(app.today)
 	if ti < 0 {

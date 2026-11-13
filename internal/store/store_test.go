@@ -1,7 +1,7 @@
 package store
 
 import (
-	"encoding/json"
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,210 +10,389 @@ import (
 	"flowlog-desktop/internal/model"
 )
 
-func newStore(t *testing.T) (*Store, string) {
+func newStore(t *testing.T) *Store {
 	t.Helper()
-	dir := t.TempDir()
-	s, err := New(dir)
+	s, err := Open(filepath.Join(t.TempDir(), FileName))
 	if err != nil {
-		t.Fatalf("New: %v", err)
+		t.Fatalf("Open: %v", err)
 	}
-	return s, dir
+	t.Cleanup(func() { s.Close() })
+	return s
+}
+
+func sampleDay() model.Day {
+	return model.Day{
+		Date: "2026-10-10",
+		Entries: []model.Entry{{
+			ID: "e1", Subject: "数据结构", Chapter: "第 6 章 图", Section: "第 1 节 图的基本概念",
+			Points: []model.Point{
+				{ID: "p1", Text: "图的定义"},
+				{ID: "p2", Text: "连通分量", Done: true},
+			},
+			Note: "这章要画图", Minutes: 45, At: "21:30",
+		}},
+		Todos: []model.Todo{
+			{ID: "t1", Text: "复习 B 树", Done: true, At: "09:10"},
+			{ID: "t2", Text: "做题", At: "09:12"},
+		},
+	}
 }
 
 func TestSaveAndLoadDay(t *testing.T) {
-	s, dir := newStore(t)
-	day := model.Day{
-		Date: "2026-10-10",
-		Entries: []model.Entry{{
-			ID: "e1", Subject: "数据结构", Topic: "图 >> 图的基本概念",
-			Points: []model.Point{{ID: "p1", Text: "图的定义"}, {ID: "p2", Text: "连通分量", Done: true}},
-			Note:   "这章要画图", Minutes: 45, At: "21:30",
-		}},
-		Todos: []model.Todo{{ID: "t1", Text: "复习 B 树", Done: true}},
-	}
-	if err := s.SaveDay(day); err != nil {
+	s := newStore(t)
+	if err := s.SaveDay(sampleDay()); err != nil {
 		t.Fatalf("SaveDay: %v", err)
 	}
 
-	// 文件确实写到了 data/<date>.json，而且是可读的 JSON。
-	raw, err := os.ReadFile(filepath.Join(dir, "2026-10-10.json"))
+	days, err := s.Days()
 	if err != nil {
-		t.Fatalf("读文件: %v", err)
+		t.Fatalf("Days: %v", err)
 	}
-	var onDisk model.Day
-	if err := json.Unmarshal(raw, &onDisk); err != nil {
-		t.Fatalf("文件不是合法 JSON: %v", err)
+	if len(days) != 1 {
+		t.Fatalf("读到 %d 天, 期望 1", len(days))
 	}
-	// 人读的 JSON 不该把 ">>" 转义成 \u003e\u003e。
-	if !strings.Contains(string(raw), "图 >> 图的基本概念") {
-		t.Errorf("章节路径应原样保留: %s", raw)
-	}
-
-	got, err := s.LoadDay("2026-10-10")
-	if err != nil {
-		t.Fatalf("LoadDay: %v", err)
+	got := days[0]
+	if got.Date != "2026-10-10" {
+		t.Errorf("日期 = %q", got.Date)
 	}
 	if len(got.Entries) != 1 || got.Entries[0].Subject != "数据结构" {
-		t.Fatalf("Entries 丢失: %+v", got.Entries)
+		t.Fatalf("条目丢失: %+v", got.Entries)
 	}
-	if got.PointCount() != 2 || got.DonePoints() != 1 {
-		t.Fatalf("要点统计不对: total=%d done=%d", got.PointCount(), got.DonePoints())
+	e := got.Entries[0]
+	if e.Chapter != "第 6 章 图" || e.Section != "第 1 节 图的基本概念" {
+		t.Errorf("章节字段 = %q / %q", e.Chapter, e.Section)
 	}
-	if done, total := got.TodoProgress(); done != 1 || total != 1 {
-		t.Fatalf("待办统计不对: %d/%d", done, total)
+	if len(e.Points) != 2 || !e.Points[1].Done {
+		t.Errorf("要点 = %+v", e.Points)
 	}
-}
-
-func TestMissingDayIsEmpty(t *testing.T) {
-	s, _ := newStore(t)
-	day, err := s.LoadDay("2026-01-02")
-	if err != nil {
-		t.Fatalf("LoadDay: %v", err)
+	if e.Minutes != 45 || e.At != "21:30" {
+		t.Errorf("时长/时间 = %d / %q", e.Minutes, e.At)
 	}
-	if day.Date != "2026-01-02" {
-		t.Errorf("Date = %q", day.Date)
+	if done, total := got.TodoProgress(); done != 1 || total != 2 {
+		t.Errorf("待办进度 = %d/%d", done, total)
 	}
-	if day.HasContent() {
-		t.Errorf("缺失的文件应该读成空 Day")
-	}
-	// 空 Day 的切片也应该是非 nil 的，免得 UI 里到处判空。
-	if day.Entries == nil || day.Todos == nil {
-		t.Errorf("切片应为空切片而非 nil: %+v", day)
+	// 顺序要保留
+	if got.Todos[0].ID != "t1" || got.Todos[1].ID != "t2" {
+		t.Errorf("待办顺序 = %+v", got.Todos)
 	}
 }
 
-func TestSaveEmptyDayRemovesFile(t *testing.T) {
-	s, dir := newStore(t)
-	if err := s.SaveDay(model.Day{Date: "2026-01-03", Todos: []model.Todo{{ID: "1", Text: "x"}}}); err != nil {
-		t.Fatalf("SaveDay: %v", err)
+func TestSaveIsReplaceNotAppend(t *testing.T) {
+	s := newStore(t)
+	day := sampleDay()
+	if err := s.SaveDay(day); err != nil {
+		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "2026-01-03.json")); err != nil {
-		t.Fatalf("文件应该存在: %v", err)
+	// 同一份数据保存两次，不应该出现重复行。
+	if err := s.SaveDay(day); err != nil {
+		t.Fatal(err)
 	}
-	// 内容被清空之后，文件应当消失。
-	if err := s.SaveDay(model.Day{Date: "2026-01-03"}); err != nil {
-		t.Fatalf("SaveDay empty: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "2026-01-03.json")); !os.IsNotExist(err) {
-		t.Fatalf("空日记的文件应该被删掉, stat err = %v", err)
-	}
-}
-
-func TestSaveOverwritesAtomically(t *testing.T) {
-	s, dir := newStore(t)
-	for i := 0; i < 3; i++ {
-		day := model.Day{Date: "2026-02-02", Todos: []model.Todo{{ID: "1", Text: "第" + string(rune('a'+i)) + "次"}}}
-		if err := s.SaveDay(day); err != nil {
-			t.Fatalf("SaveDay #%d: %v", i, err)
-		}
-	}
-	// 临时文件不该留在数据目录里。
-	entries, err := os.ReadDir(dir)
+	days, err := s.Days()
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, e := range entries {
-		if e.Name() != "2026-02-02.json" {
-			t.Errorf("数据目录里有多余文件 %q", e.Name())
-		}
+	if len(days[0].Entries) != 1 || len(days[0].Todos) != 2 {
+		t.Fatalf("重复保存后: %d 条记录 / %d 条待办", len(days[0].Entries), len(days[0].Todos))
 	}
 }
 
-func TestLoadDaysSortedAndSkipsForeignFiles(t *testing.T) {
-	s, dir := newStore(t)
+func TestEditReplacesPoints(t *testing.T) {
+	s := newStore(t)
+	day := sampleDay()
+	if err := s.SaveDay(day); err != nil {
+		t.Fatal(err)
+	}
+	// 编辑这条记录：删掉一个要点，改一个，新增一个。
+	e := &day.Entries[0]
+	e.Points = []model.Point{{ID: "p2", Text: "连通分量（改）", Done: true}, {ID: "p3", Text: "邻接矩阵"}}
+	if err := s.SaveDay(day); err != nil {
+		t.Fatal(err)
+	}
+	days, _ := s.Days()
+	got := days[0].Entries[0].Points
+	if len(got) != 2 {
+		t.Fatalf("要点 = %+v", got)
+	}
+	if got[0].Text != "连通分量（改）" || !got[0].Done {
+		t.Errorf("第一条 = %+v", got[0])
+	}
+	if got[1].Text != "邻接矩阵" {
+		t.Errorf("第二条 = %+v", got[1])
+	}
+}
+
+func TestEmptyDayIsRemoved(t *testing.T) {
+	s := newStore(t)
+	day := sampleDay()
+	if err := s.SaveDay(day); err != nil {
+		t.Fatal(err)
+	}
+	// 清空后保存：这一天的行应该消失。
+	if err := s.SaveDay(model.Day{Date: day.Date}); err != nil {
+		t.Fatal(err)
+	}
+	days, err := s.Days()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(days) != 0 {
+		t.Fatalf("清空后还剩 %d 天", len(days))
+	}
+}
+
+func TestDeleteDayCascades(t *testing.T) {
+	s := newStore(t)
+	if err := s.SaveDay(sampleDay()); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteDay("2026-10-10"); err != nil {
+		t.Fatal(err)
+	}
+	days, _ := s.Days()
+	if len(days) != 0 {
+		t.Fatalf("删除后还有 %d 天", len(days))
+	}
+	// 级联删掉的条目、要点不应该残留：再存一天，ID 还能复用（主键没被占用）。
+	d := model.Day{Date: "2026-10-11", Entries: []model.Entry{{ID: "e1", Subject: "x"}}}
+	if err := s.SaveDay(d); err != nil {
+		t.Fatalf("重用被删除的 ID: %v", err)
+	}
+}
+
+func TestDaysSortedNewestFirst(t *testing.T) {
+	s := newStore(t)
 	for _, date := range []string{"2026-01-01", "2026-03-05", "2025-12-31"} {
-		if err := s.SaveDay(model.Day{Date: date, Todos: []model.Todo{{ID: "1", Text: date}}}); err != nil {
+		if err := s.SaveDay(model.Day{Date: date, Todos: []model.Todo{{ID: date, Text: date}}}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	// 不该被当成日期的文件
-	if err := os.WriteFile(filepath.Join(dir, "settings.json"), []byte(`{"theme":"dark"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "notes.json"), []byte(`{}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	// 损坏的日期文件：跳过，并报告出来。
-	if err := os.WriteFile(filepath.Join(dir, "2026-02-02.json"), []byte(`{oops`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	days, bad, err := s.LoadDays()
+	days, err := s.Days()
 	if err != nil {
-		t.Fatalf("LoadDays: %v", err)
-	}
-	if len(days) != 3 {
-		t.Fatalf("读到 %d 天, 期望 3: %+v", len(days), days)
+		t.Fatal(err)
 	}
 	want := []string{"2026-03-05", "2026-01-01", "2025-12-31"}
 	for i, date := range want {
 		if days[i].Date != date {
-			t.Errorf("第 %d 天 = %q, 期望 %q（应按日期倒序）", i, days[i].Date, date)
+			t.Errorf("第 %d 天 = %q, 期望 %q", i, days[i].Date, date)
 		}
-	}
-	if len(bad) != 1 || bad[0] != "2026-02-02" {
-		t.Errorf("坏文件 = %v, 期望 [2026-02-02]", bad)
-	}
-}
-
-func TestLegacyDiaryMigrates(t *testing.T) {
-	s, dir := newStore(t)
-	legacy := `{"date":"2026-11-13","diary":"今天开始写 FlowLog。","todos":[]}`
-	if err := os.WriteFile(filepath.Join(dir, "2026-11-13.json"), []byte(legacy), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	day, err := s.LoadDay("2026-11-13")
-	if err != nil {
-		t.Fatalf("LoadDay: %v", err)
-	}
-	if len(day.Entries) != 1 {
-		t.Fatalf("旧日记没有迁移成 Entry: %+v", day)
-	}
-	if day.Entries[0].Note != "今天开始写 FlowLog。" {
-		t.Errorf("迁移后内容 = %q", day.Entries[0].Note)
-	}
-	if day.LegacyDiary != "" {
-		t.Errorf("迁移后不应再保留 diary 字段")
 	}
 }
 
 func TestRejectBadDates(t *testing.T) {
-	s, _ := newStore(t)
+	s := newStore(t)
 	for _, date := range []string{"", "2026-13-01", "../evil", "2026-1-1", "20261113"} {
 		if err := s.SaveDay(model.Day{Date: date, Todos: []model.Todo{{ID: "1", Text: "x"}}}); err == nil {
 			t.Errorf("SaveDay(%q) 应该报错", date)
 		}
-		if _, err := s.LoadDay(date); err == nil {
-			t.Errorf("LoadDay(%q) 应该报错", date)
+		if err := s.DeleteDay(date); err == nil {
+			t.Errorf("DeleteDay(%q) 应该报错", date)
 		}
 	}
 }
 
 func TestSettingsRoundTrip(t *testing.T) {
-	s, _ := newStore(t)
-	st, err := s.LoadSettings()
+	s := newStore(t)
+	st, err := s.Settings()
 	if err != nil {
-		t.Fatalf("LoadSettings: %v", err)
+		t.Fatalf("Settings: %v", err)
 	}
-	if st.Theme != model.ThemeSystem {
-		t.Errorf("默认外观 = %q, 期望 system", st.Theme)
+	if st.Theme != model.ThemeLight {
+		t.Errorf("默认外观 = %q, 期望 light", st.Theme)
 	}
-	if err := s.SaveSettings(model.Settings{Theme: model.ThemeDark, Accent: "#ea580c"}); err != nil {
-		t.Fatalf("SaveSettings: %v", err)
+	if err := s.SaveSettings(model.Settings{Theme: model.ThemeDark, UserName: "Mixsu", Onboarded: true}); err != nil {
+		t.Fatal(err)
 	}
-	got, err := s.LoadSettings()
+	got, err := s.Settings()
 	if err != nil {
-		t.Fatalf("LoadSettings: %v", err)
+		t.Fatal(err)
 	}
-	if got.Theme != model.ThemeDark || got.Accent != "#ea580c" {
+	if got.Theme != model.ThemeDark || got.UserName != "Mixsu" || !got.Onboarded {
 		t.Errorf("设置往返 = %+v", got)
 	}
-	// 写入未知的 Theme 值会被拉回 system，避免 UI 拿到无法识别的值。
+	// 未知主题收敛为 light
 	if err := s.SaveSettings(model.Settings{Theme: "neon"}); err != nil {
 		t.Fatal(err)
 	}
-	got, _ = s.LoadSettings()
-	if got.Theme != model.ThemeSystem {
-		t.Errorf("未知外观 = %q, 期望被收敛成 system", got.Theme)
+	got, _ = s.Settings()
+	if got.Theme != model.ThemeLight {
+		t.Errorf("未知主题 = %q, 期望被收敛成 light", got.Theme)
+	}
+}
+
+func TestBackupRoundTrip(t *testing.T) {
+	s := newStore(t)
+	if err := s.SaveDay(sampleDay()); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveSettings(model.Settings{Theme: model.ThemeDark, UserName: "Mixsu", Onboarded: true}); err != nil {
+		t.Fatal(err)
+	}
+
+	path := filepath.Join(t.TempDir(), "backup.json")
+	if err := s.ExportFile(path); err != nil {
+		t.Fatalf("导出: %v", err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"FlowLog"`, `"数据结构"`, `"第 6 章 图"`, `"Mixsu"`} {
+		if !strings.Contains(string(raw), want) {
+			t.Errorf("备份里缺少 %s:\n%s", want, raw)
+		}
+	}
+
+	// 导进一个空库，内容应完全一致。
+	b, err := ReadBackup(path)
+	if err != nil {
+		t.Fatalf("ReadBackup: %v", err)
+	}
+	other, err := Open(filepath.Join(t.TempDir(), FileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer other.Close()
+	if err := other.Restore(b); err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+	days, err := other.Days()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(days) != 1 || days[0].PointCount() != 2 || len(days[0].Todos) != 2 {
+		t.Fatalf("恢复后 = %+v", days)
+	}
+	st, _ := other.Settings()
+	if st.UserName != "Mixsu" || st.Theme != model.ThemeDark {
+		t.Errorf("设置没恢复: %+v", st)
+	}
+}
+
+func TestRestoreReplacesEverything(t *testing.T) {
+	s := newStore(t)
+	if err := s.SaveDay(model.Day{Date: "2026-01-01", Todos: []model.Todo{{ID: "old", Text: "旧数据"}}}); err != nil {
+		t.Fatal(err)
+	}
+	b := &Backup{App: "FlowLog", Format: 1, Days: []model.Day{{Date: "2026-02-02", Todos: []model.Todo{{ID: "new", Text: "新数据"}}}}}
+	if err := s.Restore(b); err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+	days, _ := s.Days()
+	if len(days) != 1 || days[0].Date != "2026-02-02" {
+		t.Fatalf("恢复应该是替换而不是合并: %+v", days)
+	}
+}
+
+func TestReadBackupRejectsForeignFile(t *testing.T) {
+	dir := t.TempDir()
+	cases := map[string]string{
+		"not-json.json":  "hello",
+		"other-app.json": `{"app":"Other","format":1,"days":[]}`,
+	}
+	for name, body := range cases {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := ReadBackup(path); !IsNotBackup(err) {
+			t.Errorf("%s: 期望 ErrNotBackup, 得到 %v", name, err)
+		}
+	}
+}
+
+func TestImportJSONDir(t *testing.T) {
+	dir := t.TempDir()
+	// 老格式：v0.2 的 topic、v0.1 的 diary，顺带一个坏文件和一个 settings.json。
+	files := map[string]string{
+		"2026-11-13.json": `{"date":"2026-11-13","entries":[
+			{"id":"e9","subject":"随手记","note":"今天开始写 FlowLog。","at":"00:00"},
+			{"id":"e8","subject":"计算机组成原理","topic":"第 4 章 存储系统 >> 第 8 节 虚拟存储器",
+			 "points":[{"id":"p1","text":"地址映射"}]}],
+			"todos":[{"id":"1","text":"跑通 store","done":true}]}`,
+		"2026-11-12.json": `{"date":"2026-11-12","todos":[{"id":"2","text":"第二天的待办"}]}`,
+		"2026-11-10.json": `{"date":"2026-11-10","diary":"只有一段文字"}`,
+		"settings.json":   `{"theme":"dark"}`,
+		"2026-11-11.json": "not json",
+	}
+	for name, body := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	days, bad, err := ImportJSONDir(dir)
+	if err != nil {
+		t.Fatalf("ImportJSONDir: %v", err)
+	}
+	if len(days) != 3 {
+		t.Fatalf("读到 %d 天: %+v", len(days), days)
+	}
+	if len(bad) != 1 || bad[0] != "2026-11-11.json" {
+		t.Errorf("坏文件 = %v", bad)
+	}
+	if days[0].Date != "2026-11-13" {
+		t.Errorf("应按日期倒序: %+v", days)
+	}
+
+	// v0.2 的 topic 应该被拆成章 / 节。
+	var migrated model.Entry
+	for _, e := range days[0].Entries {
+		if e.Subject == "计算机组成原理" {
+			migrated = e
+		}
+	}
+	if migrated.Chapter != "第 4 章 存储系统" || migrated.Section != "第 8 节 虚拟存储器" {
+		t.Errorf("topic 没有迁移成章 / 节: %+v", migrated)
+	}
+	if len(migrated.Points) != 1 || migrated.Points[0].Text != "地址映射" {
+		t.Errorf("要点丢失: %+v", migrated.Points)
+	}
+	if done, _ := days[0].TodoProgress(); done != 1 {
+		t.Errorf("待办的完成状态丢失: %+v", days[0].Todos)
+	}
+
+	// v0.1 的 diary 应该变成一条「随手记」。
+	if len(days[2].Entries) != 1 || days[2].Entries[0].Subject != "随手记" {
+		t.Errorf("diary 没有迁移: %+v", days[2].Entries)
+	}
+
+	s := newStore(t)
+	n, err := s.ImportDays(days)
+	if err != nil || n != 3 {
+		t.Fatalf("ImportDays = %d, %v", n, err)
+	}
+	got, _ := s.Days()
+	if len(got) != 3 || got[1].Todos[0].Text != "第二天的待办" {
+		t.Errorf("导入结果 = %+v", got)
+	}
+}
+
+func TestDBFileIsCreated(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sub", FileName)
+	s, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer s.Close()
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("数据库文件不存在: %v", err)
+	}
+	if !strings.HasSuffix(s.Path(), FileName) {
+		t.Errorf("Path = %q", s.Path())
+	}
+}
+
+// TestExportIsHumanReadable 确认导出的 JSON 不转义 ">>"。
+func TestExportIsHumanReadable(t *testing.T) {
+	s := newStore(t)
+	if err := s.SaveDay(sampleDay()); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if err := s.Export(&buf); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "第 6 章 图") {
+		t.Errorf("导出的 JSON 中文应原样可读:\n%s", buf.String())
 	}
 }

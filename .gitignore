@@ -1,11 +1,10 @@
-# 构建文件
+# 构建产物
 /build/
 /.mygo/
 mygo_windows_*.syso
 
-# 官方自带skill
+# 官方自带的 agent skill
 .agents
 
-# 数据文件
-data
-docs
+# 本地数据（SQLite 数据库与旧版 JSON）
+/data/

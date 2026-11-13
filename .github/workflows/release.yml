@@ -1,0 +1,70 @@
+# 打一个 v* 标签即触发：创建 draft release → 三平台构建并上传 → 发布。
+#
+# 需要的仓库 secret：
+#   MYGO_UPDATER_PRIVATE_KEY  mygo-update.key 的内容（更新签名的私钥）
+# 可选（正式签名用）：
+#   MACOS_CERTIFICATE / MACOS_CERTIFICATE_PASSWORD / APPLE_ID / APPLE_TEAM_ID / APPLE_APP_PASSWORD
+#   WINDOWS_CERTIFICATE / WINDOWS_CERTIFICATE_PASSWORD
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # 创建 draft release 并把构建产物传上去
+
+jobs:
+  draft-release:
+    name: 创建 draft release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --draft --verify-tag --title "$GITHUB_REF_NAME" --generate-notes
+          fi
+
+  build:
+    needs: draft-release
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS, os: macos-latest, platform: "darwin/arm64,darwin/amd64" }
+          - { name: Windows, os: ubuntu-latest, platform: "windows/amd64,windows/arm64" }
+          - { name: Linux, os: ubuntu-latest, platform: "linux/amd64,linux/arm64" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: 检查标签与 mygo.json 的版本是否一致
+        run: test "$GITHUB_REF_NAME" = "v$(jq -r .version mygo.json)"
+
+      # Windows 安装包用 NSIS 生成；在 Linux 上构建 Windows 目标时需要它。
+      - name: Install NSIS, for the Windows installers
+        if: matrix.name == 'Windows'
+        run: sudo apt-get update && sudo apt-get install -y nsis
+
+      - name: 构建并上传
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+        run: go tool mygo build -platform "${{ matrix.platform }}" -upload
+
+  publish:
+    needs: build
+    name: 发布
+    runs-on: ubuntu-latest
+    steps:
+      - name: 取消 draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false

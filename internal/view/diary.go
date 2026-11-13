@@ -10,7 +10,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// diary 是日记页：左边不用放，全部是一列按日期倒序的卡片，右上角写新的一条。
+// diary 是日记页：一列按日期倒序的卡片，右上角写新的一条。
 func (app *App) diary(c *ui.Context) {
 	app.filtered = app.filterDays()
 
@@ -23,18 +23,16 @@ func (app *App) diary(c *ui.Context) {
 		points += app.days[i].PointCount()
 	}
 	subtitle := fmt.Sprintf("共 %d 天 · %d 条要点", written, points)
-	if strings.TrimSpace(app.query) != "" {
-		subtitle = fmt.Sprintf("「%s」的搜索结果 · %d 天", strings.TrimSpace(app.query), len(app.filtered))
+	if q := strings.TrimSpace(app.query); q != "" {
+		subtitle = fmt.Sprintf("「%s」的搜索结果 · %d 天", q, len(app.filtered))
 	}
 
 	ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 		pageHeader(c, "日记", subtitle, func() {
 			app.searchInput(c)
 
-			// 按钮自带的 label 会排在 children 之前，所以这里传空 label，
-			// 自己先放图标再放文字，做成一枚「＋ 写日记」。
 			add := ui.PrimaryButton(c.Key("diary-add"), "").Label("写日记").
-				Tooltip("写下今天的学习（" + cmdName + "+N）")
+				Tooltip("记录今天的学习（" + cmdName + " + N）")
 			add.Children(func() {
 				ui.Icon(c, iconPlus).FontSize(14)
 				ui.Text(c, "写日记").SingleLine()
@@ -44,19 +42,19 @@ func (app *App) diary(c *ui.Context) {
 
 		if len(app.filtered) == 0 {
 			if strings.TrimSpace(app.query) != "" {
-				emptyState(c, iconSearch, "没有找到相关记录",
-					"换个词试试，比如科目名、章节名，或者某条要点里的关键词。",
+				emptyState(c, iconSearch, "没有匹配的记录",
+					"可以试试科目、章节，或要点里的关键词。",
 					"清空搜索", func() { app.query = "" })
 			} else {
-				emptyState(c, iconBook, "还是一片空白",
-					"从这里写下第一条：科目、章节，今天弄懂的几条要点。",
+				emptyState(c, iconBook, "还没有记录",
+					"点击右上角「写日记」，记录科目、章节和今天弄懂的要点。",
 					"写今天的日记", func() { app.openEditor(app.today, "") })
 			}
 			return
 		}
 
-		// 列表按日期给每一行一个稳定 Key：滚动位置与行内控件状态跟着「那一天」走，
-		// 而不是跟着下标走，这样搜索过滤、插入新的一天都不会串行。
+		// 列表按日期给每一行一个稳定 Key：滚动位置与行内控件状态跟着
+		// 「那一天」走，而不是跟着下标走。
 		app.diaryList.Key = func(i int) any {
 			if i < 0 || i >= len(app.filtered) {
 				return i
@@ -81,8 +79,7 @@ func (app *App) searchInput(c *ui.Context) {
 
 // filterDays 按搜索词算出要显示的下标。
 //
-// 今天总是显示（哪怕还没写），因为它是「落笔的入口」；
-// 搜索时则不显示空的今天，避免占一行没用的结果。
+// 今天总是显示（哪怕还没写），因为它是落笔的入口；搜索时不显示空的今天。
 func (app *App) filterDays() []int {
 	app.filtered = app.filtered[:0]
 	q := strings.ToLower(strings.TrimSpace(app.query))
@@ -110,7 +107,8 @@ func dayMatches(d model.Day, q string) bool {
 	}
 	for _, e := range d.Entries {
 		if strings.Contains(strings.ToLower(e.Subject), q) ||
-			strings.Contains(strings.ToLower(e.Topic), q) ||
+			strings.Contains(strings.ToLower(e.Chapter), q) ||
+			strings.Contains(strings.ToLower(e.Section), q) ||
 			strings.Contains(strings.ToLower(e.Note), q) {
 			return true
 		}
@@ -128,7 +126,7 @@ func dayMatches(d model.Day, q string) bool {
 	return false
 }
 
-// dayCard 画一天：日期头、若干条学习记录，以及卡片右上角的编辑/删除。
+// dayCard 画一天：日期头与若干条学习记录。
 func (app *App) dayCard(c *ui.Context, di int) {
 	t := c.Theme()
 	if di < 0 || di >= len(app.days) {
@@ -140,36 +138,37 @@ func (app *App) dayCard(c *ui.Context, di int) {
 	points := day.PointCount()
 
 	cardEl := ui.Column(c).Key("day-card-"+date).Padding(18).Gap(12).Radius(14).
-		Background(t.Background).Border(1, t.Border).
+		Background(cardBG(t)).Border(1, t.Border).
 		Shadow(0, 1, 2, 0, ui.RGBA(0, 0, 0, 0.04))
 
 	cardEl.Children(func() {
 		ui.Row(c).Gap(9).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, model.DisplayDate(date)).FontSize(15.5).Bold().SingleLine()
+			ui.Text(c, model.DisplayDate(date)).Font(fontSerif).
+				FontSize(16).Bold().SingleLine()
 			ui.Text(c, model.Weekday(model.MustDate(date))).FontSize(12).TextColor(t.TextMuted)
 			if rel != "" {
 				pill(c, rel, t.Accent.Alpha(0.13), t.Accent)
 			}
 			if points > 0 {
-				ui.Textf(c, "%d 条要点", points).FontSize(11.5).TextColor(t.TextMuted)
+				if done := day.DonePoints(); done > 0 {
+					ui.Textf(c, "%d 条要点 · 已复习 %d", points, done).
+						FontSize(11.5).TextColor(t.TextMuted)
+				} else {
+					ui.Textf(c, "%d 条要点", points).FontSize(11.5).TextColor(t.TextMuted)
+				}
 			}
 			ui.Spacer(c)
-			// 卡片 hover 时才出现「删掉这一天」，平时只留一个「＋」。
+			// 删除整天是危险操作，只在鼠标移到卡片上时出现。
 			if cardEl.Hovered() && day.HasContent() {
 				iconButton(c, "del-"+date, "删除这一天的记录", iconTrash, func() {
 					app.askDeleteDay(date)
 				})
 			}
-			iconButton(c, "edit-"+date, "在这一天加一条记录", iconPlus, func() {
-				app.openEditor(date, "")
-			})
 		})
 
 		if len(day.Entries) == 0 {
-			ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(2, 0).Children(func() {
-				ui.Text(c, "这一天还留白。").FontSize(12.5).TextColor(t.TextMuted)
-				ui.Button(c, "写一条").FontSize(12).OnClick(func() { app.openEditor(date, "") })
-			})
+			ui.Text(c, "这一天还没有记录。").
+				FontSize(12.5).TextColor(t.TextMuted).Padding(2, 0)
 			return
 		}
 
@@ -182,7 +181,7 @@ func (app *App) dayCard(c *ui.Context, di int) {
 	})
 }
 
-// entryBlock 是一条学习记录：科目、章节面包屑、要点清单、备注。
+// entryBlock 是一条学习记录：科目、章节路径、要点清单、备注。
 func (app *App) entryBlock(c *ui.Context, di, ei int) {
 	t := c.Theme()
 	e := &app.days[di].Entries[ei]
@@ -196,9 +195,9 @@ func (app *App) entryBlock(c *ui.Context, di, ei int) {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			pill(c, e.Subject, t.Accent.Alpha(0.13), t.Accent)
 
-			if parts := model.TopicParts(e.Topic); len(parts) > 0 {
-				ui.Text(c, strings.Join(parts, "  ›  ")).FontSize(12).
-					TextColor(t.TextMuted).SingleLine().Grow(1)
+			if topic := topicLine(*e); topic != "" {
+				ui.Text(c, topic).FontSize(12).TextColor(t.TextMuted).
+					SingleLine().Grow(1)
 			} else {
 				ui.Spacer(c)
 			}
@@ -213,8 +212,7 @@ func (app *App) entryBlock(c *ui.Context, di, ei int) {
 				ui.Text(c, e.At).FontSize(11).TextColor(t.TextMuted)
 			}
 
-			// 编辑按钮一直在，但平时只有一半不透明度：鼠标移到这一条上才「亮」起来，
-			// 这样列表安静，需要时也不会找不到。
+			// 编辑按钮一直在，平时半透明，鼠标移到这一条上才变亮。
 			edit := iconButton(c, "edit-entry-"+id, "编辑这条记录", iconPen, func() {
 				app.openEditor(date, id)
 			})
@@ -224,7 +222,7 @@ func (app *App) entryBlock(c *ui.Context, di, ei int) {
 		})
 
 		if len(e.Points) > 0 {
-			ui.Column(c).Gap(3).Padding(0, 2, 0, 2).Children(func() {
+			ui.Column(c).Gap(3).Padding(0, 2).Children(func() {
 				for k := range e.Points {
 					app.pointRow(c, di, ei, k)
 				}
@@ -234,7 +232,8 @@ func (app *App) entryBlock(c *ui.Context, di, ei int) {
 		if strings.TrimSpace(e.Note) != "" {
 			ui.Row(c).Gap(10).Padding(0, 4).Children(func() {
 				ui.Box(c).Width(2).Radius(2).Background(t.Border).Shrink(0)
-				ui.Text(c, e.Note).FontSize(12.5).TextColor(t.TextMuted).LineHeight(1.55).Grow(1)
+				ui.Text(c, e.Note).FontSize(12.5).TextColor(t.TextMuted).
+					LineHeight(1.55).Grow(1)
 			})
 		}
 	})
@@ -242,8 +241,7 @@ func (app *App) entryBlock(c *ui.Context, di, ei int) {
 
 // pointRow 是一条要点：勾上表示已经复习。
 //
-// 勾选直接写进 model（&Points[k].Done），OnChange 再负责落盘：
-// 值先变、通知后到，这是 MyGO 绑定的顺序。
+// 勾选直接写进 model（&Points[k].Done），OnChange 再负责落库。
 func (app *App) pointRow(c *ui.Context, di, ei, pi int) {
 	t := c.Theme()
 	p := &app.days[di].Entries[ei].Points[pi]
@@ -265,7 +263,7 @@ func (app *App) pointRow(c *ui.Context, di, ei, pi int) {
 
 // ---------------------------------------------------------------- 写日记弹窗
 
-// openEditor 打开编辑器：entryID 为空表示新增，否则编辑已有条目。
+// openEditor 打开编辑器：entryID 为空表示新增。
 func (app *App) openEditor(date, entryID string) {
 	ed := &app.ed
 	ed.Open = true
@@ -275,7 +273,7 @@ func (app *App) openEditor(date, entryID string) {
 	}
 	ed.EntryID = entryID
 	ed.Err = ""
-	ed.Subject, ed.Topic, ed.Points, ed.Note, ed.Minutes = "", "", "", "", 0
+	ed.Subject, ed.Chapter, ed.Section, ed.Points, ed.Note, ed.Minutes = "", "", "", "", "", 0
 
 	if entryID == "" {
 		return
@@ -287,7 +285,8 @@ func (app *App) openEditor(date, entryID string) {
 	}
 	e := day.Entries[i]
 	ed.Subject = e.Subject
-	ed.Topic = e.Topic
+	ed.Chapter = e.Chapter
+	ed.Section = e.Section
 	ed.Note = e.Note
 	ed.Minutes = float64(e.Minutes)
 	lines := make([]string, 0, len(e.Points))
@@ -312,10 +311,9 @@ func (app *App) diaryEditor(c *ui.Context) {
 	}
 
 	ui.Modal(c, &app.ed.Open, func() {
-		// 表单高度跟着窗口走：窗口矮的时候表单自己滚动，
-		// 但「保存 / 取消」永远留在面板底部，不会被顶出屏幕。
+		// 表单高度跟着窗口走：窗口矮时表单自己滚动，按钮始终留在底部。
 		_, windowHeight := c.Size()
-		formHeight := windowHeight - 300
+		formHeight := windowHeight - 320
 		if formHeight < 160 {
 			formHeight = 160
 		}
@@ -324,15 +322,15 @@ func (app *App) diaryEditor(c *ui.Context) {
 			// 标题
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Icon(c, iconPen).FontSize(15).TextColor(t.Accent)
-				ui.Text(c, title).FontSize(16).Bold().SingleLine()
+				ui.Text(c, title).Font(fontSerif).FontSize(17).Bold().SingleLine()
 				ui.Spacer(c)
-				ui.Text(c, cmdName+"+Enter 保存").FontSize(10.5).TextColor(t.TextMuted)
+				ui.Text(c, cmdName+" + Enter 保存").FontSize(10.5).TextColor(t.TextMuted)
 				iconButton(c, "close-editor", "关闭", iconClose, func() { app.ed.Open = false })
 			})
 
 			ui.Scroll(c).MaxHeight(formHeight).Children(func() {
-				ui.Column(c).Gap(13).Children(func() {
-					// 第一行：日期 + 科目
+				ui.Column(c).Gap(14).Children(func() {
+					// 日期 + 科目
 					ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
 						if editing {
 							ui.Column(c).Width(168).Gap(6).Children(func() {
@@ -358,20 +356,33 @@ func (app *App) diaryEditor(c *ui.Context) {
 						})
 					})
 
-					ui.Field(c, "章节 / 主题", func() {
-						ui.TextInput(c.Key("editor-topic"), &app.ed.Topic).Label("章节").
-							Placeholder("第 4 章 存储系统 >> 第 8 节 虚拟存储器")
+					// 章、节分成两个可选输入框
+					ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
+						ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+							ui.Field(c, "章", func() {
+								ui.TextInput(c.Key("editor-chapter"), &app.ed.Chapter).
+									Label("章").Placeholder("第 4 章 存储系统")
+							})
+						})
+						ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+							ui.Field(c, "节", func() {
+								ui.TextInput(c.Key("editor-section"), &app.ed.Section).
+									Label("节").Placeholder("第 8 节 虚拟存储器")
+							})
+						})
 					})
+					ui.Text(c, "章、节都可以留空，只写科目也能保存。").
+						FontSize(10.5).TextColor(t.TextMuted)
 
 					ui.Field(c, "要点", func() {
 						ui.TextArea(c.Key("editor-points"), &app.ed.Points).Label("要点").
 							Lines(5, 10).
-							Placeholder("一行一条，可以带 - 开头，直接从旧笔记粘进来：\n- 4.8.2 页式虚拟存储器 -（2）地址映射和页表")
+							Placeholder("一行一条，例如：\n页式虚拟存储器的地址映射\n页表的结构与访问流程")
 					})
-					ui.Text(c, "每行一条；- 会被自动去掉。已勾选的要点在编辑后会保留。").
+					ui.Text(c, "每行一条，会自动去掉开头的「- 」。").
 						FontSize(10.5).TextColor(t.TextMuted)
 
-					// 第二行：时长 + 备注
+					// 时长 + 备注
 					ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
 						ui.Column(c).Width(168).Children(func() {
 							ui.Field(c, "学习时长（分钟）", func() {
@@ -382,23 +393,20 @@ func (app *App) diaryEditor(c *ui.Context) {
 						ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 							ui.Field(c, "备注", func() {
 								ui.TextArea(c.Key("editor-note"), &app.ed.Note).Label("备注").
-									Lines(2, 4).Placeholder("今天卡在哪里（可选）")
+									Lines(2, 4).Placeholder("可选")
 							})
 						})
 					})
 
 					if app.ed.Err != "" {
-						ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-							ui.Text(c, "！").FontSize(12).Bold().TextColor(t.Danger)
-							ui.Text(c, app.ed.Err).FontSize(12).TextColor(t.Danger)
-						})
+						ui.Text(c, app.ed.Err).FontSize(12).TextColor(t.Danger)
 					}
 				})
 			})
 
-			// 底部动作
-			ui.Box(c).Height(1).Background(t.Border).Margin(0, -2, 0, -2)
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			// 分隔线与底部动作：线贴在表单下，按钮再往下留出间距。
+			ui.Box(c).Height(1).Background(t.Border).Margin(6, -2, 0)
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(16, 0, 2).Children(func() {
 				if editing {
 					ui.Button(c, "删除这条").FontSize(12).TextColor(t.Danger).OnClick(func() {
 						date := app.ed.Date.Format(model.DateLayout)
@@ -423,13 +431,13 @@ func (app *App) diaryEditor(c *ui.Context) {
 func (app *App) saveEditor() {
 	subject := strings.TrimSpace(app.ed.Subject)
 	if subject == "" {
-		app.ed.Err = "写一下科目吧，比如「计算机组成原理」。"
+		app.ed.Err = "请填写科目，例如「计算机组成原理」。"
 		return
 	}
 	points := parsePointLines(app.ed.Points)
 	note := strings.TrimSpace(app.ed.Note)
 	if len(points) == 0 && note == "" {
-		app.ed.Err = "至少写一条要点，或者一段备注。"
+		app.ed.Err = "至少填写一条要点，或写一段备注。"
 		return
 	}
 
@@ -447,7 +455,8 @@ func (app *App) saveEditor() {
 	entry := model.Entry{
 		ID:      app.ed.EntryID,
 		Subject: subject,
-		Topic:   strings.TrimSpace(app.ed.Topic),
+		Chapter: strings.TrimSpace(app.ed.Chapter),
+		Section: strings.TrimSpace(app.ed.Section),
 		Points:  points,
 		Note:    note,
 		Minutes: int(app.ed.Minutes),
@@ -459,18 +468,18 @@ func (app *App) saveEditor() {
 		app.days[di].Entries = append(app.days[di].Entries, entry)
 		app.persist(date)
 		app.ed.Open = false
-		app.toast("记下了", subject+" · "+plural(len(points), "条要点"))
+		app.toast("已记录", subject+" · "+plural(len(points), "条要点"))
 		return
 	}
 
 	j := app.days[di].EntryByID(entry.ID)
 	if j < 0 {
-		app.ed.Err = "这条记录已经不在了，可能刚被删掉。"
+		app.ed.Err = "这条记录已不存在，可能刚被删除。"
 		return
 	}
 	old := app.days[di].Entries[j]
 	entry.At = old.At
-	// 按文本对上旧的要点，把「已复习」与 ID 带过来，避免编辑一次就丢勾。
+	// 按文本对上旧要点，带过「已复习」与 ID，避免编辑一次就丢勾。
 	for i := range entry.Points {
 		for _, p := range old.Points {
 			if p.Text == entry.Points[i].Text {
@@ -503,22 +512,7 @@ func parsePointLines(s string) []model.Point {
 	return out
 }
 
-// upsert 把一天写进内存列表，并保持按日期倒序。
-func (app *App) upsert(day model.Day) {
-	if i := app.dayIndex(day.Date); i >= 0 {
-		app.days[i] = day
-		return
-	}
-	pos := 0
-	for pos < len(app.days) && app.days[pos].Date > day.Date {
-		pos++
-	}
-	app.days = append(app.days, model.Day{})
-	copy(app.days[pos+1:], app.days[pos:])
-	app.days[pos] = day
-}
-
-// subjects 汇总出现过的科目，用来给「科目」输入框做补全。
+// subjects 汇总出现过的科目，用于输入框补全。
 func (app *App) subjects() []string {
 	seen := make(map[string]bool, 8)
 	out := make([]string, 0, 8)
@@ -557,8 +551,8 @@ func (app *App) askDeleteEntry(date, entryID string) {
 func (app *App) askDeleteDay(date string) {
 	day := app.day(date)
 	what := plural(len(day.Entries), "条学习记录")
-	if done, total := day.TodoProgress(); total > 0 {
-		what += "、" + plural(total, "条待办") + "（" + plural(done, "条已完成") + "）"
+	if _, total := day.TodoProgress(); total > 0 {
+		what += "、" + plural(total, "条待办")
 	}
 	app.confirm = confirmState{
 		Open:    true,
@@ -622,7 +616,7 @@ func (app *App) deleteDay(date string) {
 	})
 }
 
-// confirmDialog 是全局的确认框（删除之类）。
+// confirmDialog 是全局的确认框。
 func (app *App) confirmDialog(c *ui.Context) {
 	if !app.confirm.Open {
 		return
