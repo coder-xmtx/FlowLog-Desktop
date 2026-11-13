@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flowlog-desktop/internal/view"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -9,13 +10,13 @@ import (
 // The view runs without a window in tests, which click and type as a user
 // would.
 func TestView(t *testing.T) {
-	a := &app{}
-	tt := ui.NewTester(a.view, 480, 360)
+	a := &view.App{}
+	tt := ui.NewTester(a.View, 480, 360)
 	if err := tt.Click("+"); err != nil {
 		t.Fatal(err)
 	}
-	if a.count != 1 || !tt.HasText("1") {
-		t.Errorf("count %d after a click, texts %q", a.count, tt.Texts())
+	if a.Count != 1 || !tt.HasText("1") {
+		t.Errorf("count %d after a click, texts %q", a.Count, tt.Texts())
 	}
 	if err := tt.Click("Name"); err != nil {
 		t.Fatal(err)

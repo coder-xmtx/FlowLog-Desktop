@@ -5,3 +5,6 @@ mygo_windows_*.syso
 
 # 官方自带skill
 .agents
+
+# 数据文件
+data
