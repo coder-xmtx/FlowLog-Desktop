@@ -2,10 +2,10 @@
 //
 // 表结构（见 schema）：
 //
-//	days     一天一行，主键是 "2026-11-13"
+//	days     有日记的日期，主键是 "2026-11-13"
 //	entries  学习条目，属于某一天，按 position 排序
 //	points   要点，属于某条 entry
-//	todos    待办，属于某一天
+//	todos    待办，独立于日记，带创建日期与可选的截止日期
 //	settings 键值对，存外观与用户称呼
 //
 // 写操作走 sqlite.DB.Transaction：一天的数据整体替换，
@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"flowlog-desktop/internal/model"
@@ -29,8 +30,15 @@ import (
 // FileName 是数据库文件名。
 const FileName = "flowlog.db"
 
-// schema 是建表语句。用 IF NOT EXISTS，可以重复执行。
-var schema = []string{
+// SchemaVersion 是当前表结构版本，记在 PRAGMA user_version 里。
+//
+//	0  新库，直接按当前 schema 建表
+//	1  v0.3：todos 属于某一天（todos.date），由外键级联
+//	2  v0.4：todos 独立，date 改为 created，新增 due
+const SchemaVersion = 2
+
+// createStatements 建表与索引，用 IF NOT EXISTS，可以重复执行。
+var createStatements = []string{
 	`CREATE TABLE IF NOT EXISTS days (
 		date       TEXT PRIMARY KEY,
 		created_at INTEGER NOT NULL DEFAULT 0
@@ -54,12 +62,12 @@ var schema = []string{
 		position INTEGER NOT NULL DEFAULT 0
 	)`,
 	`CREATE TABLE IF NOT EXISTS todos (
-		id       TEXT PRIMARY KEY,
-		date     TEXT NOT NULL REFERENCES days(date) ON DELETE CASCADE,
-		text     TEXT NOT NULL,
-		done     INTEGER NOT NULL DEFAULT 0,
-		at       TEXT NOT NULL DEFAULT '',
-		position INTEGER NOT NULL DEFAULT 0
+		id      TEXT PRIMARY KEY,
+		text    TEXT NOT NULL,
+		done    INTEGER NOT NULL DEFAULT 0,
+		created TEXT NOT NULL DEFAULT '',
+		due     TEXT NOT NULL DEFAULT '',
+		at      TEXT NOT NULL DEFAULT ''
 	)`,
 	`CREATE TABLE IF NOT EXISTS settings (
 		key   TEXT PRIMARY KEY,
@@ -67,11 +75,8 @@ var schema = []string{
 	)`,
 	`CREATE INDEX IF NOT EXISTS entries_by_date ON entries(date, position)`,
 	`CREATE INDEX IF NOT EXISTS points_by_entry ON points(entry_id, position)`,
-	`CREATE INDEX IF NOT EXISTS todos_by_date ON todos(date, position)`,
+	`CREATE INDEX IF NOT EXISTS todos_by_done ON todos(done, due)`,
 }
-
-// SchemaVersion 是当前表结构版本，记在 PRAGMA user_version 里。
-const SchemaVersion = 1
 
 // Store 是一个打开的数据库。
 type Store struct {
@@ -96,20 +101,59 @@ func Open(path string) (*Store, error) {
 	return s, nil
 }
 
-// migrate 建表并把 user_version 推到 SchemaVersion。
+// migrate 把数据库推到 SchemaVersion。
 func (s *Store) migrate() error {
+	version, err := s.userVersion()
+	if err != nil {
+		return err
+	}
+	if version >= SchemaVersion {
+		return nil
+	}
+
 	ctx := context.Background()
-	stmts := make([]sqlite.Statement, 0, len(schema))
-	for _, sql := range schema {
-		stmts = append(stmts, sqlite.Statement{SQL: sql})
+	stmts := make([]sqlite.Statement, 0, len(createStatements)+1)
+	if version < 1 {
+		// 新库：按当前 schema 一次建好。
+		for _, sql := range createStatements {
+			stmts = append(stmts, sqlite.Statement{SQL: sql})
+		}
+	} else if version < 2 {
+		// v1 → v2：把 todos 从「属于某一天」改成「独立 + 截止日期」。
+		stmts = append(stmts,
+			sqlite.Statement{SQL: `ALTER TABLE todos RENAME TO todos_v1`},
+			sqlite.Statement{SQL: `CREATE TABLE todos (
+				id      TEXT PRIMARY KEY,
+				text    TEXT NOT NULL,
+				done    INTEGER NOT NULL DEFAULT 0,
+				created TEXT NOT NULL DEFAULT '',
+				due     TEXT NOT NULL DEFAULT '',
+				at      TEXT NOT NULL DEFAULT ''
+			)`},
+			sqlite.Statement{SQL: `INSERT INTO todos (id, text, done, created, due, at)
+				SELECT id, text, done, date, '', at FROM todos_v1`},
+			sqlite.Statement{SQL: `DROP TABLE todos_v1`},
+			sqlite.Statement{SQL: `CREATE INDEX IF NOT EXISTS todos_by_done ON todos(done, due)`},
+		)
 	}
+	stmts = append(stmts, sqlite.Statement{SQL: fmt.Sprintf("PRAGMA user_version = %d", SchemaVersion)})
+
 	if _, err := s.db.Transaction(ctx, stmts); err != nil {
-		return fmt.Errorf("建表: %w", err)
-	}
-	if _, err := s.db.Execute(ctx, fmt.Sprintf("PRAGMA user_version = %d", SchemaVersion)); err != nil {
-		return fmt.Errorf("写 schema 版本: %w", err)
+		return fmt.Errorf("升级数据库到 v%d: %w", SchemaVersion, err)
 	}
 	return nil
+}
+
+// userVersion 读 PRAGMA user_version。
+func (s *Store) userVersion() (int, error) {
+	rows, err := s.db.Query(context.Background(), `PRAGMA user_version`)
+	if err != nil {
+		return 0, fmt.Errorf("读取 schema 版本: %w", err)
+	}
+	if len(rows.Values) == 0 {
+		return 0, nil
+	}
+	return int(number(rows.Values[0][0])), nil
 }
 
 // Close 关闭数据库。重复调用无副作用。
@@ -133,7 +177,7 @@ func (s *Store) Size() int64 {
 
 // ---------------------------------------------------------------- 读
 
-// Days 读出全部日子，按日期从新到旧，并带上各自的条目、要点与待办。
+// Days 读出全部有日记的日子，按日期从新到旧，并带上条目与要点。
 func (s *Store) Days() ([]model.Day, error) {
 	ctx := context.Background()
 
@@ -149,16 +193,12 @@ func (s *Store) Days() ([]model.Day, error) {
 			continue
 		}
 		index[date] = len(days)
-		days = append(days, model.Day{Date: date, Entries: []model.Entry{}, Todos: []model.Todo{}})
+		days = append(days, model.Day{Date: date, Entries: []model.Entry{}})
 	}
 	if len(days) == 0 {
 		return days, nil
 	}
-
 	if err := s.loadEntries(days, index); err != nil {
-		return nil, err
-	}
-	if err := s.loadTodos(days, index); err != nil {
 		return nil, err
 	}
 	return days, nil
@@ -215,33 +255,50 @@ func (s *Store) loadEntries(days []model.Day, index map[string]int) error {
 	return nil
 }
 
-func (s *Store) loadTodos(days []model.Day, index map[string]int) error {
-	ctx := context.Background()
-	rows, err := s.db.Query(ctx, `SELECT date, id, text, done, at FROM todos ORDER BY date, position`)
+// Todos 读出全部待办：未完成的在前，同档按截止日期与创建时间排。
+func (s *Store) Todos() ([]model.Todo, error) {
+	rows, err := s.db.Query(context.Background(),
+		`SELECT id, text, done, created, due, at FROM todos ORDER BY done, created DESC`)
 	if err != nil {
-		return fmt.Errorf("读取待办: %w", err)
+		return nil, fmt.Errorf("读取待办: %w", err)
 	}
+	todos := make([]model.Todo, 0, len(rows.Values))
 	for _, row := range rows.Values {
-		di, ok := index[text(row[0])]
-		if !ok {
-			continue
-		}
-		days[di].Todos = append(days[di].Todos, model.Todo{
-			ID:   text(row[1]),
-			Text: text(row[2]),
-			Done: number(row[3]) != 0,
-			At:   text(row[4]),
+		todos = append(todos, model.Todo{
+			ID:      text(row[0]),
+			Text:    text(row[1]),
+			Done:    number(row[2]) != 0,
+			Created: text(row[3]),
+			Due:     text(row[4]),
+			At:      text(row[5]),
 		})
 	}
-	return nil
+	sort.SliceStable(todos, func(i, j int) bool {
+		a, b := todos[i], todos[j]
+		if a.Done != b.Done {
+			return !a.Done
+		}
+		if a.Due != b.Due {
+			// 没有截止日期的排在有日期的后面。
+			if a.Due == "" {
+				return false
+			}
+			if b.Due == "" {
+				return true
+			}
+			return a.Due < b.Due
+		}
+		return a.Created > b.Created
+	})
+	return todos, nil
 }
 
 // ---------------------------------------------------------------- 写
 
-// SaveDay 用 day 的内容整体替换某一天。
+// SaveDay 用 day 的内容整体替换这一天的日记。
 //
-// 一天没有条目也没有待办时，连这一天的行一起删掉：
-// 界面上不会出现一张空卡片，数据库里也不留空壳。
+// 没有条目时连这一天的行一起删掉：界面上不会出现空卡片，
+// 数据库里也不留空壳。待办不受影响。
 func (s *Store) SaveDay(day model.Day) error {
 	if err := validDate(day.Date); err != nil {
 		return err
@@ -249,16 +306,15 @@ func (s *Store) SaveDay(day model.Day) error {
 	day.Normalize()
 
 	ctx := context.Background()
-	if !day.HasContent() {
+	if !day.HasEntries() {
 		return s.DeleteDay(day.Date)
 	}
 
-	stmts := make([]sqlite.Statement, 0, 8+len(day.Entries)*2+len(day.Todos))
+	stmts := make([]sqlite.Statement, 0, 8+len(day.Entries)*2)
 	stmts = append(stmts,
 		sqlite.Statement{SQL: `INSERT OR IGNORE INTO days (date, created_at) VALUES (?, ?)`,
 			Args: []any{day.Date, time.Now().Unix()}},
 		sqlite.Statement{SQL: `DELETE FROM entries WHERE date = ?`, Args: []any{day.Date}},
-		sqlite.Statement{SQL: `DELETE FROM todos WHERE date = ?`, Args: []any{day.Date}},
 	)
 	for i, e := range day.Entries {
 		entryID := e.ID
@@ -282,22 +338,13 @@ func (s *Store) SaveDay(day model.Day) error {
 				Args: []any{pointID, entryID, p.Text, boolInt(p.Done), j}})
 		}
 	}
-	for i, t := range day.Todos {
-		todoID := t.ID
-		if todoID == "" {
-			todoID = model.NewID()
-		}
-		stmts = append(stmts, sqlite.Statement{SQL: `INSERT INTO todos
-			(id, date, text, done, at, position) VALUES (?, ?, ?, ?, ?, ?)`,
-			Args: []any{todoID, day.Date, t.Text, boolInt(t.Done), t.At, i}})
-	}
 	if _, err := s.db.Transaction(ctx, stmts); err != nil {
 		return fmt.Errorf("保存 %s: %w", day.Date, err)
 	}
 	return nil
 }
 
-// DeleteDay 删除一天和它名下的条目、要点、待办。
+// DeleteDay 删除一天和它名下的条目、要点。待办不受影响。
 func (s *Store) DeleteDay(date string) error {
 	if err := validDate(date); err != nil {
 		return err
@@ -309,9 +356,44 @@ func (s *Store) DeleteDay(date string) error {
 	return nil
 }
 
+// SaveTodo 写入或更新一条待办。
+func (s *Store) SaveTodo(todo model.Todo) error {
+	if todo.ID == "" {
+		return fmt.Errorf("待办缺少 ID")
+	}
+	label := strings.TrimSpace(todo.Text)
+	if label == "" {
+		return fmt.Errorf("待办内容为空")
+	}
+	if todo.Due != "" {
+		if err := validDate(todo.Due); err != nil {
+			return fmt.Errorf("截止日期不合法: %w", err)
+		}
+	}
+	_, err := s.db.Execute(context.Background(), `INSERT OR REPLACE INTO todos
+		(id, text, done, created, due, at) VALUES (?, ?, ?, ?, ?, ?)`,
+		todo.ID, label, boolInt(todo.Done), todo.Created, todo.Due, todo.At)
+	if err != nil {
+		return fmt.Errorf("保存待办: %w", err)
+	}
+	return nil
+}
+
+// DeleteTodo 删除一条待办。
+func (s *Store) DeleteTodo(id string) error {
+	if _, err := s.db.Execute(context.Background(), `DELETE FROM todos WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("删除待办: %w", err)
+	}
+	return nil
+}
+
 // DeleteAll 清空所有数据，用于「从备份恢复」前的一次性清理。
 func (s *Store) DeleteAll() error {
-	if _, err := s.db.Execute(context.Background(), `DELETE FROM days`); err != nil {
+	stmts := []sqlite.Statement{
+		{SQL: `DELETE FROM days`},
+		{SQL: `DELETE FROM todos`},
+	}
+	if _, err := s.db.Transaction(context.Background(), stmts); err != nil {
 		return fmt.Errorf("清空数据: %w", err)
 	}
 	return nil
@@ -321,7 +403,7 @@ func (s *Store) DeleteAll() error {
 
 // Settings 读出应用设置，缺失的键用默认值补齐。
 func (s *Store) Settings() (model.Settings, error) {
-	st := model.Settings{Theme: model.ThemeLight}
+	st := model.DefaultSettings()
 	rows, err := s.db.Query(context.Background(), `SELECT key, value FROM settings`)
 	if err != nil {
 		return st, fmt.Errorf("读取设置: %w", err)
@@ -329,24 +411,19 @@ func (s *Store) Settings() (model.Settings, error) {
 	for _, row := range rows.Values {
 		switch text(row[0]) {
 		case "theme":
-			st.Theme = text(row[1])
+			st.Theme = model.NormalizeTheme(text(row[1]))
 		case "userName":
 			st.UserName = text(row[1])
 		case "onboarded":
 			st.Onboarded = text(row[1]) == "1"
 		}
 	}
-	if st.Theme != model.ThemeDark {
-		st.Theme = model.ThemeLight
-	}
 	return st, nil
 }
 
 // SaveSettings 写入应用设置。
 func (s *Store) SaveSettings(st model.Settings) error {
-	if st.Theme != model.ThemeDark {
-		st.Theme = model.ThemeLight
-	}
+	st.Theme = model.NormalizeTheme(st.Theme)
 	onboarded := "0"
 	if st.Onboarded {
 		onboarded = "1"
@@ -403,11 +480,6 @@ func number(v any) int64 {
 		return n
 	}
 	return 0
-}
-
-// SortDays 按日期倒序整理切片（导入时用）。
-func SortDays(days []model.Day) {
-	sort.Slice(days, func(i, j int) bool { return days[i].Date > days[j].Date })
 }
 
 // ErrNotBackup 表示文件不是流记的备份。

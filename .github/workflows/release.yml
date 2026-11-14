@@ -1,4 +1,5 @@
-# 打一个 v* 标签即触发：创建 draft release → 三平台构建并上传 → 发布。
+# 打一个 v* 标签即触发：从 CHANGELOG 取发布说明 → 创建 draft release →
+# 三平台构建并上传 → 发布。
 #
 # 需要的仓库 secret：
 #   MYGO_UPDATER_PRIVATE_KEY  mygo-update.key 的内容（更新签名的私钥）
@@ -19,13 +20,36 @@ jobs:
     name: 创建 draft release
     runs-on: ubuntu-latest
     steps:
-      - name: Create the draft release
+      - uses: actions/checkout@v4
+
+      # 发布说明来自 CHANGELOG.md 里 "## <版本号>" 那一节，
+      # 而不是 GitHub 自动生成的 What's changed。
+      - name: 从 CHANGELOG.md 取发布说明
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v tag="## ${version}" '
+            index($0, tag) == 1 { started = 1; next }
+            started && /^## / { exit }
+            started { print }
+          ' CHANGELOG.md > "${RUNNER_TEMP}/notes.md"
+          if [ ! -s "${RUNNER_TEMP}/notes.md" ]; then
+            echo "CHANGELOG.md 缺少 \"## ${version}\" 一节，无法生成发布说明" >&2
+            exit 1
+          fi
+          echo "发布说明："
+          cat "${RUNNER_TEMP}/notes.md"
+
+      - name: 创建或更新 draft release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --notes-file "${RUNNER_TEMP}/notes.md"
+          else
             gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
-              --draft --verify-tag --title "$GITHUB_REF_NAME" --generate-notes
+              --draft --verify-tag --title "$GITHUB_REF_NAME" \
+              --notes-file "${RUNNER_TEMP}/notes.md"
           fi
 
   build:
@@ -64,7 +88,22 @@ jobs:
     name: 发布
     runs-on: ubuntu-latest
     steps:
-      - name: 取消 draft
+      - uses: actions/checkout@v4
+
+      # 再写一次说明：构建上传只加附件，不会动正文，但重跑时保持幂等。
+      - name: 校验发布说明仍然存在
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v tag="## ${version}" '
+            index($0, tag) == 1 { started = 1; next }
+            started && /^## / { exit }
+            started { print }
+          ' CHANGELOG.md > "${RUNNER_TEMP}/notes.md"
+          test -s "${RUNNER_TEMP}/notes.md"
+
+      - name: 取消 draft 并写入说明
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
+        run: |
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            --notes-file "${RUNNER_TEMP}/notes.md" --draft=false

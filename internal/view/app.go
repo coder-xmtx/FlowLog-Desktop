@@ -22,33 +22,48 @@ import (
 )
 
 // App 是窗口里显示的全部状态。
+//
+// 日记与待办是两套独立的数据：days 只有学习记录，todos 不属于任何一天。
 type App struct {
 	store  *store.Store
 	router *ui.Router
 	win    *mygo.Window
 
-	// days 是所有有内容的日子，按日期倒序；今天永远在列表里。
-	days  []model.Day
+	// days 有日记的日子，按日期倒序；今天永远在列表里（哪怕还空着）。
+	days []model.Day
+	// todos 全部待办，独立于日记。
+	todos []model.Todo
 	today string
 
 	settings model.Settings
+	// lastDark 是上一帧实际用的深浅色，供没有 Context 的切换回调使用。
+	lastDark bool
 
 	// 日记页
 	diaryList   ui.ListState
 	query       string
 	focusSearch bool
 	filtered    []int
+	// revealDate 是侧边栏日历点中的日期：日记页构建完成后滚到那一行。
+	revealDate string
 
 	// 待办页
 	todoList   ui.ListState
 	todoDraft  string
+	todoDue    time.Time // 新待办的截止日期，零值表示不设
+	calView    time.Time // 截止日期弹层里日历的游标
+	focusInput bool      // 下一帧把焦点送回待办输入框
 	todoFilter int
-	todoRows   []int
+	visible    []int // 每帧算出的待办下标
+
+	// 侧边栏日历显示的月份（当月 1 号）。
+	calMonth time.Time
 
 	// 弹层
 	ed         editorState
 	confirm    confirmState
 	onboarding onboardState
+	duePicker  bool
 
 	// 首页背景（必应每日一图）
 	bg          *ui.Bitmap
@@ -57,6 +72,8 @@ type App struct {
 
 	// 自动更新
 	update updateState
+	// releaseNotes 是当前版本的发布说明（来自 CHANGELOG.md）。
+	releaseNotes string
 
 	// 待展示的提示，在下一帧开头交给 c.AddToast。
 	toasts []pendingToast
@@ -109,20 +126,27 @@ func NewApp(s *store.Store) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	todos, err := s.Todos()
+	if err != nil {
+		return nil, err
+	}
 	settings, err := s.Settings()
 	if err != nil {
 		return nil, err
 	}
 
+	now := time.Now()
 	app := &App{
 		store:    s,
 		router:   ui.NewRouter("/"),
 		today:    model.Today(),
 		days:     days,
+		todos:    todos,
 		settings: settings,
+		calMonth: time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.Local),
+		calView:  now,
 	}
 	app.ensureToday()
-
 	return app, nil
 }
 
@@ -138,6 +162,11 @@ func (app *App) Start() {
 
 // SetWindow 记住主窗口，供后台任务请求重绘、菜单项使用。
 func (app *App) SetWindow(w *mygo.Window) { app.win = w }
+
+// SetReleaseNotes 传入 CHANGELOG.md 的内容，设置页会展示当前版本的说明。
+func (app *App) SetReleaseNotes(changelog string) {
+	app.releaseNotes = extractReleaseNotes(changelog, appVersion)
+}
 
 // View 是窗口的内容函数：每帧被调用一次（或多次），把状态画成界面。
 func (app *App) View(c *ui.Context) {
@@ -187,12 +216,12 @@ func (app *App) dayIndex(date string) int {
 	return -1
 }
 
-// day 返回某一天的数据；不存在时返回一个空 Day（不写库）。
+// day 返回某一天的日记；不存在时返回一个空 Day（不写库）。
 func (app *App) day(date string) model.Day {
 	if i := app.dayIndex(date); i >= 0 {
 		return app.days[i]
 	}
-	return model.Day{Date: date, Entries: []model.Entry{}, Todos: []model.Todo{}}
+	return model.Day{Date: date, Entries: []model.Entry{}}
 }
 
 // ensureToday 保证今天在列表里，这样「今天」永远有一张可以落笔的卡片。
@@ -203,7 +232,7 @@ func (app *App) ensureToday() {
 	pos := sort.Search(len(app.days), func(i int) bool { return app.days[i].Date <= app.today })
 	app.days = append(app.days, model.Day{})
 	copy(app.days[pos+1:], app.days[pos:])
-	app.days[pos] = model.Day{Date: app.today, Entries: []model.Entry{}, Todos: []model.Todo{}}
+	app.days[pos] = model.Day{Date: app.today, Entries: []model.Entry{}}
 }
 
 // rollOver 处理跨零点：应用一直开着的时候，「今天」要跟着日期走。
@@ -216,9 +245,7 @@ func (app *App) rollOver() {
 	app.ensureToday()
 }
 
-// persist 把某一天的当前内容写进数据库。
-//
-// 调用点都在 OnClick / OnChange 里，也就是本帧构建完成之后。
+// persist 把某一天的日记写进数据库。
 func (app *App) persist(date string) {
 	i := app.dayIndex(date)
 	if i < 0 {
@@ -231,11 +258,71 @@ func (app *App) persist(date string) {
 	app.pruneEmpty()
 }
 
-// pruneEmpty 丢掉「已经不是今天、且没有任何内容」的日子。
+// saveTodo 写入或更新一条待办，并同步内存里的副本。
+func (app *App) saveTodo(todo model.Todo) bool {
+	if err := app.store.SaveTodo(todo); err != nil {
+		app.toastError("保存待办失败", err.Error())
+		return false
+	}
+	if i := app.todoIndex(todo.ID); i >= 0 {
+		app.todos[i] = todo
+	} else {
+		app.todos = append(app.todos, todo)
+	}
+	app.sortTodos()
+	return true
+}
+
+// deleteTodoRow 从数据库与内存里删掉一条待办。
+func (app *App) deleteTodoRow(id string) bool {
+	if err := app.store.DeleteTodo(id); err != nil {
+		app.toastError("删除待办失败", err.Error())
+		return false
+	}
+	for i := range app.todos {
+		if app.todos[i].ID == id {
+			app.todos = append(app.todos[:i], app.todos[i+1:]...)
+			return true
+		}
+	}
+	return true
+}
+
+// todoIndex 返回某条待办在 app.todos 里的下标。
+func (app *App) todoIndex(id string) int {
+	for i := range app.todos {
+		if app.todos[i].ID == id {
+			return i
+		}
+	}
+	return -1
+}
+
+// sortTodos 保持与数据库一致的顺序：未完成在前，按截止日期与创建时间。
+func (app *App) sortTodos() {
+	sort.SliceStable(app.todos, func(i, j int) bool {
+		a, b := app.todos[i], app.todos[j]
+		if a.Done != b.Done {
+			return !a.Done
+		}
+		if a.Due != b.Due {
+			if a.Due == "" {
+				return false
+			}
+			if b.Due == "" {
+				return true
+			}
+			return a.Due < b.Due
+		}
+		return a.Created > b.Created
+	})
+}
+
+// pruneEmpty 丢掉「已经不是今天、且没有学习记录」的日子。
 func (app *App) pruneEmpty() {
 	kept := app.days[:0]
 	for _, d := range app.days {
-		if d.HasContent() || d.Date == app.today {
+		if d.HasEntries() || d.Date == app.today {
 			kept = append(kept, d)
 		}
 	}
@@ -318,7 +405,7 @@ func (app *App) shortcuts(c *ui.Context) {
 
 // ---------------------------------------------------------------- 侧边栏
 
-// sidebar 是左侧导航：品牌、四个页面、外观与版本。
+// sidebar 是左侧导航：品牌、四个页面、月历、外观与版本。
 func (app *App) sidebar(c *ui.Context) {
 	t := c.Theme()
 	side := ui.Column(c).Width(232).Shrink(0).FillHeight().
@@ -330,8 +417,9 @@ func (app *App) sidebar(c *ui.Context) {
 		page := app.router.Path()
 		if ui.Sidebar(c, &page, func() {
 			ui.SidebarItem(c, "/", iconHome, "首页")
+			// 日记徽标只数今天的记录；累计量放在日历和日记页里看。
 			item := ui.SidebarItem(c, "/diary", iconBook, "日记")
-			if n := app.daysWritten(); n > 0 {
+			if n := app.todayEntryCount(); n > 0 {
 				item.Children(func() { ui.Badge(c, strconv.Itoa(n)) })
 			}
 			todo := ui.SidebarItem(c, "/todo", iconCheckCircle, "待办")
@@ -343,6 +431,7 @@ func (app *App) sidebar(c *ui.Context) {
 			app.router.Push(page)
 		}
 
+		app.monthCalendar(c)
 		app.sidebarFooter(c)
 	})
 }
@@ -374,7 +463,7 @@ func (app *App) sidebarFooter(c *ui.Context) {
 			icon := iconMoon
 			label := "深色"
 			tip := "切换到深色"
-			if app.settings.Theme == model.ThemeDark {
+			if app.effectiveDark(c) {
 				icon, label, tip = iconSun, "浅色", "切换到浅色"
 			}
 			b := ui.Button(c.Key("theme-toggle"), "").Label(tip).Tooltip(tip).FontSize(11.5)
@@ -391,21 +480,54 @@ func (app *App) sidebarFooter(c *ui.Context) {
 
 // ---------------------------------------------------------------- 小工具
 
-// daysWritten 返回真正写过东西的天数。
-func (app *App) daysWritten() int {
+// todayEntryCount 返回今天写了几条学习记录。
+func (app *App) todayEntryCount() int {
+	i := app.dayIndex(app.today)
+	if i < 0 {
+		return 0
+	}
+	return len(app.days[i].Entries)
+}
+
+// openTodoCount 返回全部未完成的待办数。
+func (app *App) openTodoCount() int {
 	n := 0
-	for i := range app.days {
-		if app.days[i].HasContent() {
+	for _, t := range app.todos {
+		if !t.Done {
 			n++
 		}
 	}
 	return n
 }
 
-// openTodoCount 返回今天还没做的待办数。
-func (app *App) openTodoCount() int {
-	done, total := app.day(app.today).TodoProgress()
-	return total - done
+// daysWritten 返回写过日记的天数。
+func (app *App) daysWritten() int {
+	n := 0
+	for i := range app.days {
+		if app.days[i].HasEntries() {
+			n++
+		}
+	}
+	return n
+}
+
+// summary 汇总全库的规模，设置页会用。
+func (app *App) summary() (days, entries, points, todos int) {
+	for _, d := range app.days {
+		if !d.HasEntries() {
+			continue
+		}
+		days++
+		entries += len(d.Entries)
+		points += d.PointCount()
+	}
+	return days, entries, points, len(app.todos)
+}
+
+// hasEntries 报告某天有没有日记，侧边栏日历用它打点。
+func (app *App) hasEntries(date string) bool {
+	i := app.dayIndex(date)
+	return i >= 0 && app.days[i].HasEntries()
 }
 
 // redraw 在后台拿到新数据后请求一帧。
@@ -415,24 +537,26 @@ func (app *App) redraw() {
 	}
 }
 
-// summary 汇总全库的规模，设置页会用。
-func (app *App) summary() (days, entries, points, todos int) {
-	for _, d := range app.days {
-		if !d.HasContent() {
-			continue
+// extractReleaseNotes 从 CHANGELOG 里取出某个版本的说明。
+func extractReleaseNotes(changelog, version string) string {
+	lines := strings.Split(changelog, "\n")
+	start := -1
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "## ") && strings.TrimSpace(strings.TrimPrefix(trimmed, "## ")) == version {
+			start = i + 1
+			break
 		}
-		days++
-		entries += len(d.Entries)
-		points += d.PointCount()
-		todos += len(d.Todos)
 	}
-	return
-}
-
-// joinNames 把文件名列表拼成一行提示。
-func joinNames(names []string) string {
-	if len(names) > 3 {
-		return strings.Join(names[:3], "、") + " 等 " + strconv.Itoa(len(names)) + " 个文件"
+	if start < 0 {
+		return ""
 	}
-	return strings.Join(names, "、")
+	var out []string
+	for _, line := range lines[start:] {
+		if strings.HasPrefix(strings.TrimSpace(line), "## ") {
+			break
+		}
+		out = append(out, line)
+	}
+	return strings.TrimSpace(strings.Join(out, "\n"))
 }

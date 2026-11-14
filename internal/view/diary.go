@@ -16,7 +16,7 @@ func (app *App) diary(c *ui.Context) {
 
 	written, points := 0, 0
 	for i := range app.days {
-		if !app.days[i].HasContent() {
+		if !app.days[i].HasEntries() {
 			continue
 		}
 		written++
@@ -64,6 +64,17 @@ func (app *App) diary(c *ui.Context) {
 		ui.List(c, &app.diaryList, len(app.filtered), func(i int) {
 			app.dayCard(c, app.filtered[i])
 		}).Grow(1).Padding(2, 32, 26).Gap(14)
+
+		// 侧边栏日历点了一天：滚到那一天。只滚一次。
+		if app.revealDate != "" {
+			for i, di := range app.filtered {
+				if app.days[di].Date == app.revealDate {
+					app.diaryList.ScrollIntoView(i)
+					break
+				}
+			}
+			app.revealDate = ""
+		}
 	})
 }
 
@@ -89,7 +100,7 @@ func (app *App) filterDays() []int {
 			app.filtered = append(app.filtered, i)
 			continue
 		}
-		if d.Date == app.today && !d.HasContent() {
+		if d.Date == app.today && !d.HasEntries() {
 			continue
 		}
 		if dayMatches(d, q) {
@@ -116,11 +127,6 @@ func dayMatches(d model.Day, q string) bool {
 			if strings.Contains(strings.ToLower(p.Text), q) {
 				return true
 			}
-		}
-	}
-	for _, todo := range d.Todos {
-		if strings.Contains(strings.ToLower(todo.Text), q) {
-			return true
 		}
 	}
 	return false
@@ -159,7 +165,7 @@ func (app *App) dayCard(c *ui.Context, di int) {
 			}
 			ui.Spacer(c)
 			// 删除整天是危险操作，只在鼠标移到卡片上时出现。
-			if cardEl.Hovered() && day.HasContent() {
+			if day.HasEntries() {
 				iconButton(c, "del-"+date, "删除这一天的记录", iconTrash, func() {
 					app.askDeleteDay(date)
 				})
@@ -397,12 +403,16 @@ func (app *App) diaryEditor(c *ui.Context) {
 							})
 						})
 					})
-
-					if app.ed.Err != "" {
-						ui.Text(c, app.ed.Err).FontSize(12).TextColor(t.Danger)
-					}
 				})
 			})
+
+			// 校验错误放在滚动区外面：不管表单滚到哪里，都能立刻看到。
+			if app.ed.Err != "" {
+				ui.Row(c).Gap(6).AlignItems(ui.Center).Padding(4, 0, 0).Children(func() {
+					ui.Icon(c, iconAlert).FontSize(13).TextColor(t.Danger)
+					ui.Text(c, app.ed.Err).FontSize(12).TextColor(t.Danger).Grow(1)
+				})
+			}
 
 			// 分隔线与底部动作：线贴在表单下，按钮再往下留出间距。
 			ui.Box(c).Height(1).Background(t.Border).Margin(6, -2, 0)
@@ -444,7 +454,7 @@ func (app *App) saveEditor() {
 	date := app.ed.Date.Format(model.DateLayout)
 	di := app.dayIndex(date)
 	if di < 0 {
-		app.upsert(model.Day{Date: date, Entries: []model.Entry{}, Todos: []model.Todo{}})
+		app.upsert(model.Day{Date: date, Entries: []model.Entry{}})
 		di = app.dayIndex(date)
 		if di < 0 {
 			app.ed.Err = "找不到 " + date + " 这一天，保存失败。"
@@ -547,17 +557,13 @@ func (app *App) askDeleteEntry(date, entryID string) {
 	}
 }
 
-// askDeleteDay 弹出确认，删掉一整天的记录。
+// askDeleteDay 弹出确认，删掉一整天的记录。待办不属于日记，不会一起删。
 func (app *App) askDeleteDay(date string) {
 	day := app.day(date)
-	what := plural(len(day.Entries), "条学习记录")
-	if _, total := day.TodoProgress(); total > 0 {
-		what += "、" + plural(total, "条待办")
-	}
 	app.confirm = confirmState{
 		Open:    true,
 		Title:   "删除 " + model.DisplayDate(date) + " 的全部记录？",
-		Message: what + "，删除后无法恢复。",
+		Message: plural(len(day.Entries), "条学习记录") + "，删除后无法恢复。",
 		Yes:     "删除",
 		YesFunc: func() { app.deleteDay(date) },
 	}
@@ -581,7 +587,7 @@ func (app *App) deleteEntry(date, entryID string) {
 	app.toastUndo("已删除「"+removed.Subject+"」", "撤销", func() {
 		k := app.dayIndex(date)
 		if k < 0 {
-			app.upsert(model.Day{Date: date, Entries: []model.Entry{}, Todos: []model.Todo{}})
+			app.upsert(model.Day{Date: date, Entries: []model.Entry{}})
 			k = app.dayIndex(date)
 			if k < 0 {
 				return
@@ -607,7 +613,6 @@ func (app *App) deleteDay(date string) {
 	}
 	backup := app.days[di]
 	app.days[di].Entries = []model.Entry{}
-	app.days[di].Todos = []model.Todo{}
 	app.persist(date)
 
 	app.toastUndo("已清空 "+model.DisplayDate(date), "撤销", func() {

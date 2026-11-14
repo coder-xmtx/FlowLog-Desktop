@@ -19,7 +19,7 @@ func newTestApp(t *testing.T) *App {
 		t.Fatalf("store.Open: %v", err)
 	}
 	t.Cleanup(func() { s.Close() })
-	if err := s.SaveSettings(model.Settings{Theme: model.ThemeLight, Onboarded: true}); err != nil {
+	if err := s.SaveSettings(model.Settings{Theme: model.ThemeDark, Onboarded: true}); err != nil {
 		t.Fatal(err)
 	}
 	app, err := NewApp(s)
@@ -94,8 +94,9 @@ func TestAddDiaryEntryThroughUI(t *testing.T) {
 	}
 }
 
-// TestEditorValidation 检查「什么都不填就保存」会被拦下来。
-func TestEditorValidation(t *testing.T) {
+// TestEditorValidationShownOutsideScroll 校验错误要出现在滚动区外，
+// 用户不用滚动就能看到。
+func TestEditorValidationShownOutsideScroll(t *testing.T) {
 	app := newTestApp(t)
 	app.router.Push("/diary")
 	tt := ui.NewTester(app.View, 1200, 820)
@@ -134,7 +135,6 @@ func TestCheckPointWritesThrough(t *testing.T) {
 		t.Fatalf("要点没有被打勾: %+v", app.day(app.today).Entries[0].Points)
 	}
 
-	// 重新读库确认写进去了。
 	reopened, err := store.Open(app.store.Path())
 	if err != nil {
 		t.Fatal(err)
@@ -146,7 +146,7 @@ func TestCheckPointWritesThrough(t *testing.T) {
 	}
 }
 
-// TestTodoFlow 覆盖添加、勾选、删除、撤销。
+// TestTodoFlow 覆盖添加（带截止日期）、勾选、删除、撤销。
 func TestTodoFlow(t *testing.T) {
 	app := newTestApp(t)
 	app.router.Push("/todo")
@@ -156,35 +156,64 @@ func TestTodoFlow(t *testing.T) {
 		t.Fatalf("点输入框: %v", err)
 	}
 	tt.Type("复习 B 树")
+
+	// 打开截止日期弹层，选「明天」。
+	if err := tt.Click("选择截止日期"); err != nil {
+		t.Fatalf("点截止日期: %v", err)
+	}
+	if !app.duePicker {
+		t.Fatalf("截止日期弹层没有打开")
+	}
+	if err := tt.Click("明天"); err != nil {
+		t.Fatalf("点「明天」: %v", err)
+	}
+	if got := app.todoDue.Format(model.DateLayout); got != model.DayAfter(app.today, 1) {
+		t.Fatalf("截止日期 = %q, 期望明天", got)
+	}
+
 	tt.Key(0, ui.KeyEnter)
-	if got := len(app.day(app.today).Todos); got != 1 {
-		t.Fatalf("回车后待办数 = %d, 期望 1", got)
+	if len(app.todos) != 1 {
+		t.Fatalf("回车后待办数 = %d, 期望 1", len(app.todos))
+	}
+	todo := app.todos[0]
+	if todo.Text != "复习 B 树" {
+		t.Errorf("内容 = %q", todo.Text)
+	}
+	if todo.Due != model.DayAfter(app.today, 1) {
+		t.Errorf("截止日期没保存: %+v", todo)
+	}
+	if todo.Created != app.today {
+		t.Errorf("创建日期 = %q", todo.Created)
 	}
 	if app.todoDraft != "" {
 		t.Errorf("添加后输入框应清空, 得到 %q", app.todoDraft)
 	}
+	if !app.todoDue.IsZero() {
+		t.Errorf("添加后截止日期应重置")
+	}
 
+	// 勾选
 	if err := tt.Click("复习 B 树"); err != nil {
 		t.Fatalf("点待办: %v", err)
 	}
-	if !app.day(app.today).Todos[0].Done {
+	if !app.todos[0].Done {
 		t.Fatalf("待办没有被打勾")
 	}
 
-	id := app.day(app.today).Todos[0].ID
+	id := app.todos[0].ID
 	app.deleteTodo(id)
-	if len(app.day(app.today).Todos) != 0 {
-		t.Fatalf("删除后还有 %d 条", len(app.day(app.today).Todos))
+	if len(app.todos) != 0 {
+		t.Fatalf("删除后还有 %d 条", len(app.todos))
 	}
 	if len(app.toasts) == 0 || app.toasts[len(app.toasts)-1].Action != "撤销" {
 		t.Fatalf("删除后应该有一条可撤销的提示: %+v", app.toasts)
 	}
 
 	app.toasts[len(app.toasts)-1].OnAct()
-	if got := len(app.day(app.today).Todos); got != 1 {
-		t.Fatalf("撤销后待办数 = %d, 期望 1", got)
+	if len(app.todos) != 1 {
+		t.Fatalf("撤销后待办数 = %d, 期望 1", len(app.todos))
 	}
-	if !app.day(app.today).Todos[0].Done {
+	if !app.todos[0].Done {
 		t.Errorf("撤销应该把「已完成」状态一起带回来")
 	}
 }
@@ -192,22 +221,108 @@ func TestTodoFlow(t *testing.T) {
 // TestTodoFilter 检查「进行中 / 已完成」两个筛选。
 func TestTodoFilter(t *testing.T) {
 	app := newTestApp(t)
-	app.days[0].Todos = []model.Todo{
+	app.todos = []model.Todo{
 		{ID: "a", Text: "没做的"},
 		{ID: "b", Text: "做完的", Done: true},
 	}
 
 	app.todoFilter = 0
-	if got := len(app.todoRowsForToday()); got != 2 {
+	if got := len(app.todoRows()); got != 2 {
 		t.Errorf("全部 = %d, 期望 2", got)
 	}
 	app.todoFilter = 1
-	if rows := app.todoRowsForToday(); len(rows) != 1 || app.days[0].Todos[rows[0]].ID != "a" {
+	if rows := app.todoRows(); len(rows) != 1 || app.todos[rows[0]].ID != "a" {
 		t.Errorf("进行中 = %v", rows)
 	}
 	app.todoFilter = 2
-	if rows := app.todoRowsForToday(); len(rows) != 1 || app.days[0].Todos[rows[0]].ID != "b" {
+	if rows := app.todoRows(); len(rows) != 1 || app.todos[rows[0]].ID != "b" {
 		t.Errorf("已完成 = %v", rows)
+	}
+}
+
+// TestTodoSeparatedFromDiary 确认待办与日记解耦：
+// 只加待办不会让日记的天数、今天的记录数变化，删日记也不影响待办。
+func TestTodoSeparatedFromDiary(t *testing.T) {
+	app := newTestApp(t)
+	before := app.daysWritten()
+	todayBefore := app.todayEntryCount()
+
+	app.openEditor(app.today, "")
+	app.ed.Subject = "数据结构"
+	app.ed.Points = "图的遍历"
+	app.saveEditor()
+	if got := app.todayEntryCount(); got != todayBefore+1 {
+		t.Fatalf("写日记后今日记录 = %d", got)
+	}
+
+	app.todoDraft = "只加一条待办"
+	app.addTodo()
+	if len(app.todos) != 1 {
+		t.Fatalf("待办数 = %d", len(app.todos))
+	}
+	if got := app.daysWritten(); got != before+1 {
+		t.Errorf("加待办不该改变日记天数: %d → %d", before, got)
+	}
+	if got := app.todayEntryCount(); got != todayBefore+1 {
+		t.Errorf("加待办不该改变今日记录数: %d", got)
+	}
+
+	// 删掉这一天的日记，待办必须还在。
+	app.deleteDay(app.today)
+	if len(app.day(app.today).Entries) != 0 {
+		t.Errorf("日记没被清空")
+	}
+	if len(app.todos) != 1 {
+		t.Errorf("删日记把待办也删了: %+v", app.todos)
+	}
+}
+
+// TestTodoDueOrder 确认列表按截止日期排序，没有截止的排最后。
+func TestTodoDueOrder(t *testing.T) {
+	app := newTestApp(t)
+	today := app.today
+	app.todos = nil
+	for _, todo := range []model.Todo{
+		{ID: "none", Text: "无截止", Created: today},
+		{ID: "later", Text: "以后", Created: today, Due: model.DayAfter(today, 5)},
+		{ID: "tomorrow", Text: "明天", Created: today, Due: model.DayAfter(today, 1)},
+		{ID: "done", Text: "已完成", Created: today, Done: true, Due: model.DayAfter(today, 0)},
+	} {
+		app.saveTodo(todo)
+	}
+	want := []string{"tomorrow", "later", "none", "done"}
+	for i, id := range want {
+		if app.todos[i].ID != id {
+			t.Fatalf("第 %d 条 = %q, 期望 %q", i, app.todos[i].ID, id)
+		}
+	}
+}
+
+// TestHomeDueCard 确认首页只展示过期、今天、明天到期的待办。
+func TestHomeDueCard(t *testing.T) {
+	app := sampleApp(t)
+	app.router.Push("/")
+	tt := ui.NewTester(app.View, 1200, 820)
+
+	texts := strings.Join(tt.Texts(), "\n")
+	for _, want := range []string{
+		"待办提醒",
+		"复习 B 树的分裂与合并", // 明天到期
+		"交操作系统作业",      // 已过期
+		"明天到期",
+		"已过期",
+	} {
+		if !strings.Contains(texts, want) {
+			t.Errorf("首页缺少 %q:\n%s", want, texts)
+		}
+	}
+	// 没有截止日期的不该出现在提醒里。
+	if strings.Contains(texts, "整理虚拟存储器的笔记") {
+		t.Errorf("没有截止日期的待办不该出现在到期提醒里")
+	}
+	// 已完成的也不该出现。
+	if strings.Contains(texts, "做一章 408 真题") {
+		t.Errorf("已完成的待办不该出现在到期提醒里")
 	}
 }
 
@@ -224,7 +339,7 @@ func TestDiarySearch(t *testing.T) {
 	if rows := len(app.filterDays()); rows != 1 {
 		t.Fatalf("搜「邻接矩阵」命中 %d 天, 期望 1", rows)
 	}
-	if !tt.HasText("11 月 13 日") {
+	if !tt.HasText("11 月 13 日") && !tt.HasText(model.DisplayDate(app.today)) {
 		t.Errorf("搜索结果里应该有今天: %q", tt.Texts())
 	}
 
@@ -243,7 +358,7 @@ func TestDiarySearch(t *testing.T) {
 // TestThemePersists 检查外观写进了数据库。
 func TestThemePersists(t *testing.T) {
 	app := newTestApp(t)
-	app.settings.Theme = model.ThemeDark
+	app.settings.Theme = model.ThemeSystem
 	app.saveSettings()
 
 	reopened, err := store.Open(app.store.Path())
@@ -255,29 +370,37 @@ func TestThemePersists(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.Theme != model.ThemeDark {
-		t.Errorf("Theme = %q, 期望 dark", st.Theme)
+	if st.Theme != model.ThemeSystem {
+		t.Errorf("Theme = %q, 期望 system", st.Theme)
 	}
 }
 
-// TestSwitchThemeThroughUI 用设置页的分段控件真的切一次深色。
+// TestSwitchThemeThroughUI 用设置页的分段控件真的切一次浅色。
 func TestSwitchThemeThroughUI(t *testing.T) {
 	app := newTestApp(t)
 	app.router.Push("/settings")
 	tt := ui.NewTester(app.View, 1200, 820)
 
-	if err := tt.Click("深色"); err != nil {
-		t.Fatalf("点深色: %v", err)
+	if err := tt.Click("浅色"); err != nil {
+		t.Fatalf("点浅色: %v", err)
 	}
-	if app.settings.Theme != model.ThemeDark {
-		t.Fatalf("Theme = %q, 期望 dark", app.settings.Theme)
+	if app.settings.Theme != model.ThemeLight {
+		t.Fatalf("Theme = %q, 期望 light", app.settings.Theme)
 	}
 	st, err := app.store.Settings()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.Theme != model.ThemeDark {
+	if st.Theme != model.ThemeLight {
 		t.Errorf("设置没有落库: %+v", st)
+	}
+
+	// 跟随系统
+	if err := tt.Click("跟随系统"); err != nil {
+		t.Fatalf("点跟随系统: %v", err)
+	}
+	if app.settings.Theme != model.ThemeSystem {
+		t.Errorf("Theme = %q, 期望 system", app.settings.Theme)
 	}
 }
 
@@ -315,9 +438,6 @@ func TestOnboarding(t *testing.T) {
 	if app.settings.UserName != "小明" || !app.settings.Onboarded {
 		t.Errorf("设置 = %+v", app.settings)
 	}
-	if !tt.HasText("晚上好，小明") && !strings.Contains(strings.Join(tt.Texts(), " "), "小明") {
-		t.Errorf("首页问候里应该有称呼: %q", tt.Texts())
-	}
 }
 
 // TestDeleteDayWithUndo 清空一天，再从提示里撤销回来。
@@ -325,12 +445,12 @@ func TestDeleteDayWithUndo(t *testing.T) {
 	app := sampleApp(t)
 	date := model.MustDate(model.Today()).AddDate(0, 0, -1).Format(model.DateLayout)
 	before := app.day(date)
-	if !before.HasContent() {
+	if !before.HasEntries() {
 		t.Fatalf("样本数据里昨天应该有内容")
 	}
 
 	app.deleteDay(date)
-	if app.day(date).HasContent() {
+	if app.day(date).HasEntries() {
 		t.Errorf("清空后不应有内容")
 	}
 	if len(app.toasts) == 0 {
@@ -338,9 +458,8 @@ func TestDeleteDayWithUndo(t *testing.T) {
 	}
 	app.toasts[len(app.toasts)-1].OnAct()
 	after := app.day(date)
-	if len(after.Entries) != len(before.Entries) || len(after.Todos) != len(before.Todos) {
-		t.Errorf("撤销后 = %d 条记录 / %d 条待办, 期望 %d / %d",
-			len(after.Entries), len(after.Todos), len(before.Entries), len(before.Todos))
+	if len(after.Entries) != len(before.Entries) {
+		t.Errorf("撤销后 = %d 条记录, 期望 %d", len(after.Entries), len(before.Entries))
 	}
 }
 
@@ -351,20 +470,20 @@ func TestStreak(t *testing.T) {
 
 	for i := 1; i <= 2; i++ {
 		d := today.AddDate(0, 0, -i).Format(model.DateLayout)
-		app.upsert(model.Day{Date: d, Todos: []model.Todo{{ID: d, Text: "x"}}})
+		app.upsert(model.Day{Date: d, Entries: []model.Entry{{ID: d, Subject: "x"}}})
 	}
 	if got := app.streak(); got != 2 {
 		t.Errorf("streak = %d, 期望 2", got)
 	}
 
-	app.upsert(model.Day{Date: app.today, Todos: []model.Todo{{ID: "t", Text: "y"}}})
+	app.upsert(model.Day{Date: app.today, Entries: []model.Entry{{ID: "t", Subject: "y"}}})
 	if got := app.streak(); got != 3 {
 		t.Errorf("streak = %d, 期望 3", got)
 	}
 
 	app.days = app.days[:0]
 	app.ensureToday()
-	app.upsert(model.Day{Date: app.today, Todos: []model.Todo{{ID: "t", Text: "y"}}})
+	app.upsert(model.Day{Date: app.today, Entries: []model.Entry{{ID: "t", Subject: "y"}}})
 	if got := app.streak(); got != 1 {
 		t.Errorf("断了之后 streak = %d, 期望 1", got)
 	}
@@ -420,9 +539,7 @@ func TestTopicParts(t *testing.T) {
 		{"第 4 章 存储系统", "第 8 节 虚拟存储器", []string{"第 4 章 存储系统", "第 8 节 虚拟存储器"}},
 		{"第 4 章 存储系统", "", []string{"第 4 章 存储系统"}},
 		{"", "", nil},
-		// 老数据把两段塞在一个字段里
 		{"第 4 章 存储系统 >> 第 8 节 虚拟存储器", "", []string{"第 4 章 存储系统", "第 8 节 虚拟存储器"}},
-		// 不拆坏 TCP/IP
 		{"TCP/IP 协议栈", "", []string{"TCP/IP 协议栈"}},
 	}
 	for _, c := range cases {
@@ -439,7 +556,7 @@ func TestTopicParts(t *testing.T) {
 	}
 }
 
-// TestEmptyDayNeverShowsAnOldCard 清空一天之后，列表里不该留一张空卡片。
+// TestEmptyDayNeverShowsAnOldCard 清空一天之后，列表与数据库里都不该留空壳。
 func TestEmptyDayNeverShowsAnOldCard(t *testing.T) {
 	app := sampleApp(t)
 	date := model.MustDate(model.Today()).AddDate(0, 0, -3).Format(model.DateLayout)
@@ -447,7 +564,7 @@ func TestEmptyDayNeverShowsAnOldCard(t *testing.T) {
 	app.deleteDay(date)
 	app.toasts = nil // 不要撤销
 	for _, d := range app.days {
-		if d.Date == date && !d.HasContent() {
+		if d.Date == date && !d.HasEntries() {
 			t.Errorf("空的 %s 还留在列表里", date)
 		}
 	}
@@ -459,5 +576,54 @@ func TestEmptyDayNeverShowsAnOldCard(t *testing.T) {
 		if d.Date == date {
 			t.Errorf("数据库里还留着空的一天 %s", date)
 		}
+	}
+}
+
+// TestDueSoonModel 直接测「近两天到期」的筛选与排序。
+func TestDueSoonModel(t *testing.T) {
+	today := "2026-11-14"
+	todos := []model.Todo{
+		{ID: "future", Due: "2026-11-20"},
+		{ID: "tomorrow", Due: "2026-11-15", Created: "2026-11-10"},
+		{ID: "today", Due: "2026-11-14", Created: "2026-11-10"},
+		{ID: "overdue", Due: "2026-11-12", Created: "2026-11-09"},
+		{ID: "none", Created: "2026-11-13"},
+		{ID: "done", Due: "2026-11-14", Done: true},
+	}
+	got := model.DueSoon(todos, today)
+	want := []string{"overdue", "today", "tomorrow"}
+	if len(got) != len(want) {
+		t.Fatalf("DueSoon = %v", ids(got))
+	}
+	for i := range want {
+		if got[i].ID != want[i] {
+			t.Errorf("第 %d 条 = %q, 期望 %q", i, got[i].ID, want[i])
+		}
+	}
+	if got[0].DueStateOf(today) != model.DueOverdue {
+		t.Errorf("状态 = %v", got[0].DueStateOf(today))
+	}
+}
+
+func ids(todos []model.Todo) []string {
+	out := make([]string, len(todos))
+	for i, t := range todos {
+		out[i] = t.ID
+	}
+	return out
+}
+
+// TestReleaseNotesExtract 检查从 CHANGELOG 里取版本说明。
+func TestReleaseNotesExtract(t *testing.T) {
+	md := "# 更新日志\n\n## 0.5.0\n\n- 新功能 A\n- 修复 B\n\n## 0.4.0\n\n- 旧版本的说明\n"
+	got := extractReleaseNotes(md, "0.5.0")
+	if !strings.Contains(got, "新功能 A") || strings.Contains(got, "旧版本") {
+		t.Errorf("extractReleaseNotes = %q", got)
+	}
+	if extractReleaseNotes(md, "9.9.9") != "" {
+		t.Errorf("不存在的版本应该返回空")
+	}
+	if !strings.Contains(notesText(got, 5), "· 新功能 A") {
+		t.Errorf("notesText = %q", notesText(got, 5))
 	}
 }

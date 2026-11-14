@@ -1,6 +1,8 @@
+// Package main 是流记的入口：打开数据库、开窗口、装配发布说明。
 package main
 
 import (
+	_ "embed"
 	"log"
 	"os"
 	"path/filepath"
@@ -11,13 +13,24 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
+
+	// MyGo 内置控件（日历、数字输入等）的中文文案。
+	_ "github.com/egoist/mygo/locales/zh-Hans"
 )
 
+// changelog 是仓库根目录的 CHANGELOG.md：设置页会展示当前版本的说明。
+//
+//go:embed CHANGELOG.md
+var changelog string
+
 func main() {
+	// 界面只有中文：声明语言后，日期、数字等内置控件也使用中文格式。
+	mygo.App.SetLanguages("zh-Hans")
+
 	var db *store.Store
 
 	mygo.App.WhenReady(func() {
-		// 1. 打开数据库（必要时建表），读出全部日记与设置。
+		// 1. 打开数据库（必要时建表或升级），读出全部日记、待办与设置。
 		dir, err := dataDir()
 		if err != nil {
 			log.Fatal(err)
@@ -32,6 +45,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		app.SetReleaseNotes(changelog)
 
 		// 2. 开窗口。原生渲染：没有 webview，也没有前端构建。
 		win := mygo.NewWindow(mygo.WindowOptions{
