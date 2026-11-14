@@ -128,29 +128,35 @@ func (app *App) settingsAccount(c *ui.Context) {
 	})
 }
 
-// settingsAppearance 是浅色 / 深色。
+// settingsAppearance 是深色 / 浅色 / 跟随系统。
 func (app *App) settingsAppearance(c *ui.Context) {
 	t := c.Theme()
 	sectionCard(c, "外观", "", func() {
 		// Segmented 绑定的是下标。控件在构造返回时就写入了用户的点击，
 		// 所以 OnChange 里读到的 choice 已经是新值。
 		choice := 0
-		if app.settings.Theme == model.ThemeDark {
+		switch app.settings.Theme {
+		case model.ThemeLight:
 			choice = 1
+		case model.ThemeSystem:
+			choice = 2
 		}
-		ui.Segmented(c.Key("settings-theme"), &choice, "浅色", "深色").
-			Label("外观").Width(180).
+		ui.Segmented(c.Key("settings-theme"), &choice, "深色", "浅色", "跟随系统").
+			Label("外观").FillEqually().
 			OnChange(func() {
-				theme := model.ThemeLight
-				if choice == 1 {
-					theme = model.ThemeDark
+				theme := model.ThemeDark
+				switch choice {
+				case 1:
+					theme = model.ThemeLight
+				case 2:
+					theme = model.ThemeSystem
 				}
 				if theme != app.settings.Theme {
 					app.settings.Theme = theme
 					app.saveSettings()
 				}
 			})
-		ui.Text(c, "界面只提供浅色与深色两套配色，强调色统一使用品牌橙。").
+		ui.Text(c, "默认深色；选择「跟随系统」后，应用会随系统的深浅色切换。").
 			FontSize(11.5).TextColor(t.TextMuted)
 	})
 }
@@ -182,12 +188,9 @@ func (app *App) settingsData(c *ui.Context, days, entries, points, todos int) {
 		ui.Row(c).Gap(8).Wrap().Children(func() {
 			iconTextButton(c, "export-backup", "导出备份", iconDownload, app.exportBackup)
 			iconTextButton(c, "restore-backup", "从备份恢复", iconUpload, app.chooseBackup)
-			iconTextButton(c, "import-json", "导入旧版数据", iconInbox, app.chooseJSONDir)
 		})
 
 		ui.Text(c, "备份是一个 JSON 文件，包含全部日记、待办与设置，可以复制到别的机器上恢复。").
-			FontSize(11.5).TextColor(t.TextMuted).LineHeight(1.6)
-		ui.Text(c, "「导入旧版数据」用于把早期一天一个 JSON 文件的 data 目录迁移进来。").
 			FontSize(11.5).TextColor(t.TextMuted).LineHeight(1.6)
 	})
 }
@@ -296,19 +299,39 @@ func (app *App) updateRow(c *ui.Context) {
 	if app.update.Err != "" {
 		ui.Text(c, app.update.Err).FontSize(11.5).TextColor(t.Danger)
 	}
-	if app.update.Notes != "" && app.update.Version != "" {
-		ui.Text(c, firstLines(app.update.Notes, 4)).FontSize(11.5).
-			TextColor(t.TextMuted).LineHeight(1.6)
+
+	// 有新版本时先看新版本的说明，否则看当前版本更新了什么。
+	switch {
+	case app.update.Notes != "" && app.update.Version != "":
+		ui.Text(c, "v"+app.update.Version+" 更新内容").FontSize(11.5).
+			FontWeight(600).TextColor(t.TextMuted)
+		ui.Text(c, notesText(app.update.Notes, 6)).FontSize(11.5).
+			TextColor(t.TextMuted).LineHeight(1.65)
+	case app.releaseNotes != "":
+		ui.Text(c, "本次更新（v"+appVersion+"）").FontSize(11.5).
+			FontWeight(600).TextColor(t.TextMuted)
+		ui.Text(c, notesText(app.releaseNotes, 8)).FontSize(11.5).
+			TextColor(t.TextMuted).LineHeight(1.65)
 	}
 }
 
-// firstLines 取多行文本的前 n 行，用于展示更新说明。
-func firstLines(s string, n int) string {
-	lines := strings.Split(strings.TrimSpace(s), "\n")
-	if len(lines) <= n {
-		return strings.Join(lines, "\n")
+// notesText 把 CHANGELOG 的 Markdown 列表转成界面上的普通文本。
+func notesText(md string, max int) string {
+	lines := strings.Split(strings.TrimSpace(md), "\n")
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		line = strings.TrimPrefix(line, "- ")
+		line = strings.TrimPrefix(line, "* ")
+		out = append(out, "· "+line)
 	}
-	return strings.Join(lines[:n], "\n") + " …"
+	if len(out) > max {
+		out = append(out[:max], "…")
+	}
+	return strings.Join(out, "\n")
 }
 
 // iconTextButton 是「图标 + 文字」的次要按钮。

@@ -14,7 +14,7 @@ import (
 // 关于这一份应用的自述。想换成自己的，改这里就够了。
 const (
 	// appVersion 与项目根目录 mygo.json 的 version 保持一致。
-	appVersion = "0.3.0"
+	appVersion = "0.4.0"
 	appName    = "流记"
 	appNameEn  = "FlowLog"
 	appTagline = "把每天的学习，写成一条清晰的流。"

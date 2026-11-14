@@ -1,7 +1,6 @@
 package view
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -63,7 +62,7 @@ func greetingByHour(hour int) string {
 	return "夜深了"
 }
 
-// home 是启动页：先给一句寄语与今天的概览，再进入具体内容。
+// home 是启动页：一句寄语、今天的概览、近期要做的待办。
 func (app *App) home(c *ui.Context) {
 	t := c.Theme()
 	date := model.MustDate(app.today)
@@ -91,11 +90,11 @@ func (app *App) home(c *ui.Context) {
 			})
 
 			ui.Row(c).Gap(16).AlignItems(ui.Stretch).Children(func() {
-				ui.Column(c).Grow(1.3).MinWidth(0).Children(func() {
+				ui.Column(c).Grow(1.25).MinWidth(0).Children(func() {
 					app.todayLearning(c, today).FillHeight()
 				})
 				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-					app.todayTodos(c).FillHeight()
+					app.dueCard(c).FillHeight()
 				})
 			})
 
@@ -112,7 +111,7 @@ func (app *App) greeting(hour int) string {
 	return greetingByHour(hour)
 }
 
-// hero 是首页顶部的大卡片：必应每日一图，取不到时退回品牌渐变。
+// hero 是首页顶部的大卡片：必应每日一图；图没到或取不到时用低调的纸色底。
 func (app *App) hero(c *ui.Context, quote string) {
 	t := c.Theme()
 	box := ui.Box(c).Height(212).Radius(18).Clip()
@@ -124,32 +123,41 @@ func (app *App) hero(c *ui.Context, quote string) {
 				Fit(ui.Cover).ZIndex(-3)
 			ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).ZIndex(-2).
 				Gradient(ui.Transparent, ui.RGBA(0, 0, 0, 0.78), 178)
-			heroContent(c, quote, "Bing 每日一图 · "+app.bgCopyright)
+			heroContent(c, quote, "Bing 每日一图 · "+app.bgCopyright, true)
 		})
 		return
 	}
 
-	from := t.Accent.Mix(ui.Hex("#ffffff"), 0.14)
-	to := t.Accent.Mix(ui.Hex("#000000"), 0.36)
-	box.Gradient(from, to, 115)
+	// 没有图片：用主题的纸色底，而不是一大块强调色。
+	box.Background(t.Surface).Border(1, t.Border)
 	box.Children(func() {
-		heroContent(c, quote, "")
+		credit := ""
+		if app.bgLoading {
+			credit = "正在加载今日图片…"
+		}
+		heroContent(c, quote, credit, false)
 	})
 }
 
 // heroContent 是卡片上的文字：标签、寄语、图片署名。
-func heroContent(c *ui.Context, quote, credit string) {
-	white := func(a float32) ui.Color { return ui.RGBA(255, 255, 255, a) }
+func heroContent(c *ui.Context, quote, credit string, onImage bool) {
+	t := c.Theme()
+	labelColor, quoteColor, creditColor := t.TextMuted, t.Text, t.TextMuted
+	if onImage {
+		labelColor = ui.RGBA(255, 255, 255, 0.85)
+		quoteColor = ui.RGBA(255, 255, 255, 0.98)
+		creditColor = ui.RGBA(255, 255, 255, 0.72)
+	}
 	ui.Column(c).Fill().Justify(ui.End).Padding(24, 26).Gap(9).Children(func() {
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, iconSparkle).FontSize(12).TextColor(white(0.85))
+			ui.Icon(c, iconSparkle).FontSize(12).TextColor(labelColor)
 			ui.Text(c, "今日寄语").FontSize(10.5).FontWeight(600).
-				LetterSpacing(1.2).TextColor(white(0.85))
+				LetterSpacing(1.2).TextColor(labelColor)
 		})
 		ui.Text(c, quote).Font(fontSerif).FontSize(21).FontWeight(600).LineHeight(1.45).
-			TextColor(white(0.98)).MaxWidth(660)
+			TextColor(quoteColor).MaxWidth(660)
 		if credit != "" {
-			ui.Text(c, credit).FontSize(10).TextColor(white(0.72)).SingleLine().
+			ui.Text(c, credit).FontSize(10).TextColor(creditColor).SingleLine().
 				MaxWidth(660).Tooltip(credit)
 		}
 	})
@@ -163,11 +171,11 @@ func (app *App) statCard(c *ui.Context, icon *ui.SVG, label, value string) {
 		Shadow(0, 1, 2, 0, ui.RGBA(0, 0, 0, 0.04)).
 		Children(func() {
 			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-				ui.Icon(c, icon).FontSize(13).TextColor(t.Accent)
+				ui.Icon(c, icon).FontSize(13).TextColor(accentInk(t))
 				ui.Text(c, label).FontSize(11.5).TextColor(t.TextMuted).SingleLine()
 			})
-			ui.Text(c, value).TextColor(t.Text).Font(fontSerif).FontSize(22).Bold().SingleLine().
-				FontFeatures("lnum")
+			ui.Text(c, value).TextColor(t.Text).Font(fontSerif).FontSize(22).Bold().
+				SingleLine().FontFeatures("lnum")
 		})
 }
 
@@ -190,7 +198,7 @@ func (app *App) todayLearning(c *ui.Context, today model.Day) ui.Element {
 			}
 			ui.Column(c).Gap(4).Children(func() {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					dot(c, 6, t.Accent)
+					dot(c, 6, accentInk(t))
 					ui.Text(c, e.Subject).FontSize(13).FontWeight(600).SingleLine()
 					if topic := topicLine(e); topic != "" {
 						ui.Text(c, topic).FontSize(11.5).
@@ -215,46 +223,71 @@ func (app *App) todayLearning(c *ui.Context, today model.Day) ui.Element {
 			ui.Textf(c, "另有 %d 条记录", extra).FontSize(11.5).TextColor(t.TextMuted)
 		}
 
-		ui.Link(c, "在日记里查看全部", "/diary").FontSize(12)
+		ui.Link(c, "在日记里查看全部", "/diary").FontSize(12).TextColor(accentInk(t))
 	})
 }
 
-// todayTodos 首页右栏：今天的待办，可以直接勾。
-func (app *App) todayTodos(c *ui.Context) ui.Element {
+// dueCard 首页右栏：今天与明天到期的待办（含已过期的）。
+func (app *App) dueCard(c *ui.Context) ui.Element {
 	t := c.Theme()
-	today := app.day(app.today)
-	done, total := today.TodoProgress()
+	due := model.DueSoon(app.todos, app.today)
 
-	return sectionCard(c, "今日待办", "", func() {
-		if total == 0 {
-			ui.Text(c, "今天还没有待办。").FontSize(12.5).TextColor(t.TextMuted)
-			// 放在 Row 里，按钮才不会被 Column 拉成整行宽。
+	return sectionCard(c, "待办提醒", "", func() {
+		if len(due) == 0 {
+			ui.Text(c, "近两天没有到期的待办。").FontSize(12.5).TextColor(t.TextMuted)
 			ui.Row(c).Children(func() {
-				ui.Button(c, "去添加").OnClick(func() { app.router.Push("/todo") })
+				ui.Button(c, "查看待办").OnClick(func() { app.router.Push("/todo") })
 			})
 			return
 		}
 
-		shown := 0
-		for _, todo := range today.Todos {
-			if todo.Done || shown == 4 {
-				continue
+		for i, todo := range due {
+			if i == 4 {
+				break
 			}
-			app.todoCheckbox(c, todo.ID)
-			shown++
+			app.dueRow(c, todo)
 		}
-		if shown == 0 {
-			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-				ui.Icon(c, iconCheckCircle).FontSize(14).TextColor(t.Success)
-				ui.Text(c, "今天的待办已完成。").FontSize(12.5).TextColor(t.TextMuted)
-			})
+
+		if extra := len(due) - 4; extra > 0 {
+			ui.Textf(c, "另有 %d 条", extra).FontSize(11.5).TextColor(t.TextMuted)
 		}
 
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Textf(c, "%d / %d 已完成", done, total).FontSize(11.5).TextColor(t.TextMuted)
+			ui.Textf(c, "%d 条待处理", len(due)).FontSize(11.5).TextColor(t.TextMuted)
 			ui.Spacer(c)
-			ui.Link(c, "全部待办", "/todo").FontSize(12)
+			ui.Link(c, "全部待办", "/todo").FontSize(12).TextColor(accentInk(t))
 		})
+	})
+}
+
+// dueRow 是一条到期提醒：勾选框、内容、截止状态。
+func (app *App) dueRow(c *ui.Context, todo model.Todo) {
+	t := c.Theme()
+	id := todo.ID
+	idx := app.todoIndex(id)
+	if idx < 0 {
+		return
+	}
+
+	ui.Row(c).Gap(9).AlignItems(ui.Center).Children(func() {
+		cb := ui.Checkbox(c.Key("home-todo-"+id), &app.todos[idx].Done, "").Label(todo.Text)
+		cb.OnChange(func() {
+			if i := app.todoIndex(id); i >= 0 {
+				app.saveTodo(app.todos[i])
+			}
+		})
+		ui.Text(c, todo.Text).FontSize(12.5).Grow(1).SingleLine()
+
+		state := todo.DueStateOf(app.today)
+		label := todo.DueLabel(app.today)
+		color := t.TextMuted
+		switch state {
+		case model.DueOverdue:
+			color = t.Danger
+		case model.DueToday:
+			color = accentInk(t)
+		}
+		ui.Text(c, label).FontSize(10.5).TextColor(color)
 	})
 }
 
@@ -278,10 +311,10 @@ func (app *App) recentStrip(c *ui.Context) {
 func (app *App) dayCell(c *ui.Context, date time.Time, isToday bool) {
 	t := c.Theme()
 	key := date.Format(model.DateLayout)
-	day := app.day(key)
+	has := app.hasEntries(key)
 
 	fill, fg := t.Surface, t.TextMuted
-	if day.HasContent() {
+	if has {
 		fill, fg = t.Accent, t.AccentText
 	} else if isToday {
 		fg = t.Text
@@ -292,28 +325,22 @@ func (app *App) dayCell(c *ui.Context, date time.Time, isToday bool) {
 
 		box := ui.Box(c).Size(32, 32).Radius(9).Background(fill).Center()
 		if isToday {
-			box.Border(1.5, t.Accent)
+			box.Border(1.5, accentInk(t))
 		}
 		box.Children(func() {
 			ui.Text(c, strconv.Itoa(date.Day())).FontSize(12).FontWeight(600).TextColor(fg)
 		})
 	})
-	cell.Tooltip(key + " · " + daySummary(day))
+	cell.Tooltip(key + " · " + daySummary(app, key))
 }
 
 // daySummary 用一句话概括某天，用于提示气泡。
-func daySummary(day model.Day) string {
-	if !day.HasContent() {
-		return "没有记录"
+func daySummary(app *App, date string) string {
+	i := app.dayIndex(date)
+	if i < 0 || !app.days[i].HasEntries() {
+		return "没有日记"
 	}
-	parts := make([]string, 0, 2)
-	if n := len(day.Entries); n > 0 {
-		parts = append(parts, plural(n, "条学习记录"))
-	}
-	if done, total := day.TodoProgress(); total > 0 {
-		parts = append(parts, fmt.Sprintf("待办 %d/%d", done, total))
-	}
-	return strings.Join(parts, " · ")
+	return plural(len(app.days[i].Entries), "条学习记录")
 }
 
 // streak 计算连续记录的天数。
@@ -324,13 +351,12 @@ func (app *App) streak() int {
 	if day.IsZero() {
 		return 0
 	}
-	if i := app.dayIndex(app.today); i < 0 || !app.days[i].HasContent() {
+	if !app.hasEntries(app.today) {
 		day = day.AddDate(0, 0, -1)
 	}
 	n := 0
 	for ; n < 3650; n++ {
-		i := app.dayIndex(day.Format(model.DateLayout))
-		if i < 0 || !app.days[i].HasContent() {
+		if !app.hasEntries(day.Format(model.DateLayout)) {
 			break
 		}
 		day = day.AddDate(0, 0, -1)

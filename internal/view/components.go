@@ -20,13 +20,13 @@ func card(c *ui.Context, body func()) ui.Element {
 
 // cardBG 返回卡片的底色。
 //
-// 深色主题下卡片比页面底色略亮一点，才有"抬起一层"的层次；
-// 浅色主题下保持和页面同色，靠描边与投影区分。
+// 浅色主题下卡片比页面（暖纸色）更接近白色，叠出层次；
+// 深色主题下卡片比页面略亮一点。
 func cardBG(t *ui.Theme) ui.Color {
 	if t.Dark {
 		return t.Background.Mix(ui.Hex("#ffffff"), 0.04)
 	}
-	return t.Background
+	return ui.Hex("#fffcf7")
 }
 
 // pageHeader 是页面顶部的标题区：左边标题与副标题，右边操作。
