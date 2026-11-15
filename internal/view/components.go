@@ -63,7 +63,7 @@ func sectionCard(c *ui.Context, title, hint string, body func()) ui.Element {
 // emptyState 是空列表时的引导：图标、说明和一颗按钮。
 func emptyState(c *ui.Context, icon *ui.SVG, title, desc, action string, on func()) ui.Element {
 	t := c.Theme()
-	return ui.Column(c).FillWidth().Center().Padding(28, 16).Gap(10).Children(func() {
+	return ui.Column(c).FillWidth().Center().Padding(8, 8).Gap(10).Children(func() {
 		ui.Icon(c, icon).FontSize(28).TextColor(t.TextMuted).Opacity(0.7)
 		ui.Text(c, title).Font(fontSerif).FontSize(15).FontWeight(600).TextColor(t.Text)
 		if desc != "" {

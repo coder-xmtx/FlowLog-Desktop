@@ -173,7 +173,7 @@ func (app *App) todoRow(c *ui.Context, index int) {
 		}
 	})
 	if hovered {
-		row.Background(t.Surface)
+		row.Background(t.SurfaceHover)
 	}
 }
 

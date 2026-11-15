@@ -164,7 +164,7 @@ func (app *App) dayCard(c *ui.Context, di int) {
 				}
 			}
 			ui.Spacer(c)
-			// 删除整天是危险操作，只在鼠标移到卡片上时出现。
+			// 删除整天
 			if day.HasEntries() {
 				iconButton(c, "del-"+date, "删除这一天的记录", iconTrash, func() {
 					app.askDeleteDay(date)

@@ -2,18 +2,47 @@ package view
 
 import "github.com/egoist/mygo/ui"
 
-// 图标全部是 24×24、2px 圆头描边的线条图标（Feather/Lucide 风格），
+// 图标全部是 24×24、2px 圆头描边的线条图标（Tabler Icons风格），
 // 用 ui.MustParseSVG 在启动时解析一次，之后每帧复用同一个 *ui.SVG。
 //
 // ui.Icon 会用文字颜色重绘图标，所以颜色交给 .TextColor() 决定。
 var (
-	iconHome = ui.MustParseSVG([]byte(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.6 12 3l9 7.6"/><path d="M5.5 9.6V19a2 2 0 0 0 2 2H10v-6h4v6h2.5a2 2 0 0 0 2-2V9.6"/></svg>`))
+	iconHome = ui.MustParseSVG([]byte(`
+	<svg width="1em" height="1em" viewBox="0 0 24 24">
+		<path d="M0 0h24v24H0z" fill="none" />
+		<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+			<path d="M5 12H3l9-9l9 9h-2M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
+			<path d="M9 21v-6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v6" />
+		</g>
+	</svg>
+`))
 
-	iconBook = ui.MustParseSVG([]byte(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5V5.5"/><path d="M8.5 7.5h7"/><path d="M8.5 11.5h4.5"/></svg>`))
+	iconBook = ui.MustParseSVG([]byte(`
+	<svg width="1em" height="1em" viewBox="0 0 24 24">
+		<path d="M0 0h24v24H0z" fill="none" />
+		<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 4h11a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1m3 0v18m4-14h2m-2 4h2" />
+	</svg>
+`))
 
-	iconCheckCircle = ui.MustParseSVG([]byte(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12.2l2.2 2.2 4-4.2"/><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>`))
+	iconCheckCircle = ui.MustParseSVG([]byte(`
+	<svg width="1em" height="1em" viewBox="0 0 24 24">
+		<path d="M0 0h24v24H0z" fill="none" />
+		<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+			<path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0" />
+			<path d="m9 12l2 2l4-4" />
+		</g>
+	</svg>
+`))
 
-	iconSettings = ui.MustParseSVG([]byte(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>`))
+	iconSettings = ui.MustParseSVG([]byte(`
+	<svg width="1em" height="1em" viewBox="0 0 24 24">
+		<path d="M0 0h24v24H0z" fill="none" />
+		<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+			<path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37c1 .608 2.296.07 2.572-1.065" />
+			<path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0-6 0" />
+		</g>
+	</svg>
+`))
 
 	iconPlus = ui.MustParseSVG([]byte(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>`))
 
@@ -44,4 +73,18 @@ var (
 	iconUpload = ui.MustParseSVG([]byte(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15.5v-12"/><path d="M7.5 8 12 3.5 16.5 8"/><path d="M4 19.5h16"/></svg>`))
 
 	iconAlert = ui.MustParseSVG([]byte(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 2.6 17.2a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4.5"/><path d="M12 17h.01"/></svg>`))
+
+	iconLeft = ui.MustParseSVG([]byte(`
+	<svg width="1em" height="1em" viewBox="0 0 24 24">
+		<path d="M0 0h24v24H0z" fill="none" />
+		<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m11 7l-5 5l5 5m6-10l-5 5l5 5" />
+	</svg>
+`))
+
+	iconRight = ui.MustParseSVG([]byte(`
+	<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24">
+		<path d="M0 0h24v24H0z" fill="none" />
+		<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m7 7l5 5l-5 5m6-10l5 5l-5 5" />
+	</svg>
+`))
 )

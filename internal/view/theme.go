@@ -2,6 +2,7 @@ package view
 
 import (
 	"flowlog-desktop/internal/model"
+	"flowlog-desktop/resources"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -15,9 +16,8 @@ const brandOrange = "#ff8904"
 // accentText 是放在品牌橙实底上的文字颜色。
 const accentText = "#241205"
 
-// fontSerif 是标题用的衬线字体栈：拉丁字母用 Georgia，
-// 中文交给 Noto Serif SC / 思源宋体 / 宋体，缺字时逐级回退。
-const fontSerif = "Georgia, Cambria, Times New Roman, Noto Serif SC, Source Han Serif CN, STSong, SimSun, Songti SC"
+// 思源宋体
+const fontSerif = resources.SerifFamily
 
 // effectiveDark 报告当前应该用深色还是浅色：
 // 深色 / 浅色是固定值，"跟随系统"读系统外观。
