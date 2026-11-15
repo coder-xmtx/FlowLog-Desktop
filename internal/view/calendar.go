@@ -17,7 +17,7 @@ func (app *App) monthCalendar(c *ui.Context) {
 
 	ui.Column(c).Padding(8, 12, 6).Gap(6).Children(func() {
 		ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
-			navButton(c, "cal-prev", "上个月", "<", func() {
+			navButton(c, "cal-prev", "上个月", iconLeft, func() {
 				app.calMonth = first.AddDate(0, -1, 0)
 			})
 
@@ -30,7 +30,7 @@ func (app *App) monthCalendar(c *ui.Context) {
 				app.calMonth = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.Local)
 			}
 
-			navButton(c, "cal-next", "下个月", ">", func() {
+			navButton(c, "cal-next", "下个月", iconRight, func() {
 				app.calMonth = first.AddDate(0, 1, 0)
 			})
 		})
@@ -109,11 +109,11 @@ func (app *App) dayPill(c *ui.Context, year, month, day int) {
 }
 
 // navButton 是月历左右的小箭头。
-func navButton(c *ui.Context, key, label, glyph string, on func()) {
+func navButton(c *ui.Context, key, label string, glyph *ui.SVG, on func()) {
 	b := ui.Button(c.Key(key), "").Label(label).Tooltip(label).
 		Size(30, 30).Padding(0).Radius(5).MinWidth(0).Center()
 	b.Children(func() {
-		ui.Text(c, glyph).FontSize(12)
+		ui.Icon(c, glyph).FontSize(20)
 	})
 	b.OnClick(on)
 }
