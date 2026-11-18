@@ -2,6 +2,7 @@ package view
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -10,41 +11,41 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// allSubjects 是科目筛选里「不限科目」那一项的文字。
+const allSubjects = "全部科目"
+
 // diary 是日记页：一列按日期倒序的卡片，右上角写新的一条。
+//
+// 页头右侧有科目筛选与搜索框；两者可以叠加，卡片里只显示命中的记录，
+// 命中的文字用底色标出来。
 func (app *App) diary(c *ui.Context) {
 	app.filtered = app.filterDays()
 
-	written, points := 0, 0
-	for i := range app.days {
-		if !app.days[i].HasEntries() {
-			continue
-		}
-		written++
-		points += app.days[i].PointCount()
-	}
-	subtitle := fmt.Sprintf("共 %d 天 · %d 条要点", written, points)
-	if q := strings.TrimSpace(app.query); q != "" {
-		subtitle = fmt.Sprintf("「%s」的搜索结果 · %d 天", q, len(app.filtered))
+	subtitle := fmt.Sprintf("共 %d 天 · %d 条要点", app.daysWritten(), app.totalPoints())
+	switch {
+	case app.hasFilter():
+		subtitle = app.filterSummary()
 	}
 
 	ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 		pageHeader(c, "日记", subtitle, func() {
+			app.subjectSelect(c)
 			app.searchInput(c)
 
 			add := ui.PrimaryButton(c.Key("diary-add"), "").Label("写日记").
 				Tooltip("记录今天的学习（" + cmdName + " + N）")
 			add.Children(func() {
-				ui.Icon(c, iconPlus).FontSize(14)
+				ui.Icon(c, iconPlus).FontSize(fsLead)
 				ui.Text(c, "写日记").SingleLine()
 			})
 			add.OnClick(func() { app.openEditor(app.today, "") })
 		})
 
 		if len(app.filtered) == 0 {
-			if strings.TrimSpace(app.query) != "" {
+			if app.hasFilter() {
 				emptyState(c, iconSearch, "没有匹配的记录",
-					"可以试试科目、章节，或要点里的关键词。",
-					"清空搜索", func() { app.query = "" })
+					"换个关键词，或者切换到别的科目试试。",
+					"清空筛选", app.clearFilters)
 			} else {
 				emptyState(c, iconBook, "还没有记录",
 					"点击右上角「写日记」，记录科目、章节和今天弄懂的要点。",
@@ -78,61 +79,199 @@ func (app *App) diary(c *ui.Context) {
 	})
 }
 
+// hasFilter 报告日记页当前有没有筛选条件。
+func (app *App) hasFilter() bool {
+	return app.subjectFilter != "" || strings.TrimSpace(app.query) != ""
+}
+
+// clearFilters 清空科目筛选与搜索词，回到全部记录。
+func (app *App) clearFilters() {
+	app.subjectFilter = ""
+	app.query = ""
+	app.focusSearch = false
+}
+
+// totalPoints 返回全部日记里的要点条数。
+func (app *App) totalPoints() int {
+	n := 0
+	for i := range app.days {
+		n += app.days[i].PointCount()
+	}
+	return n
+}
+
+// filterSummary 是页头副标题：说明当前在看什么。
+//
+// 有科目筛选时用「科目 · N 天 · M 条要点」，有搜索词时再加上「关键词」。
+func (app *App) filterSummary() string {
+	points := 0
+	for _, di := range app.filtered {
+		for _, ei := range app.shownEntries(app.days[di]) {
+			points += len(app.days[di].Entries[ei].Points)
+		}
+	}
+	switch {
+	case app.subjectFilter != "" && strings.TrimSpace(app.query) != "":
+		return fmt.Sprintf("%s ·「%s」· %d 天 · %d 条要点",
+			app.subjectFilter, strings.TrimSpace(app.query), len(app.filtered), points)
+	case app.subjectFilter != "":
+		return fmt.Sprintf("%s · %d 天 · %d 条要点", app.subjectFilter, len(app.filtered), points)
+	default:
+		return fmt.Sprintf("「%s」· %d 天 · %d 条要点",
+			strings.TrimSpace(app.query), len(app.filtered), points)
+	}
+}
+
+// subjectSelect 是页头右侧的科目录入筛选。
+//
+// 选项来自全部记录里出现过的科目，按出现次数从多到少排列；
+// 只有存在科目时才显示这个下拉框。
+func (app *App) subjectSelect(c *ui.Context) {
+	subjects := app.subjectCounts()
+	if len(subjects) == 0 {
+		return
+	}
+	options := make([]string, 0, len(subjects)+1)
+	options = append(options, allSubjects)
+	for _, s := range subjects {
+		options = append(options, s.Name)
+	}
+
+	// Select 绑定的是「选中的字符串」。本地副本每帧由 app.subjectFilter
+	// 推出来，用户选中后由 OnChange 写回 App，避免直接绑派生值。
+	choice := app.subjectFilter
+	if choice == "" {
+		choice = allSubjects
+	}
+	ui.Select(c.Key("diary-subject"), &choice, options).
+		Label("按科目筛选").Width(176).Tooltip("只看某个科目").
+		OnChange(func() {
+			if choice == allSubjects {
+				app.subjectFilter = ""
+				return
+			}
+			app.subjectFilter = choice
+		})
+}
+
+// subjectStat 是一个科目和它在全部记录里出现的次数。
+type subjectStat struct {
+	Name  string
+	Count int
+}
+
+// subjectCounts 统计每个科目出现过多少次，按次数从多到少、同次数按名字排。
+func (app *App) subjectCounts() []subjectStat {
+	counts := make(map[string]int, 8)
+	for _, d := range app.days {
+		for _, e := range d.Entries {
+			if e.Subject == "" {
+				continue
+			}
+			counts[e.Subject]++
+		}
+	}
+	out := make([]subjectStat, 0, len(counts))
+	for name, n := range counts {
+		out = append(out, subjectStat{Name: name, Count: n})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Count != out[j].Count {
+			return out[i].Count > out[j].Count
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
+}
+
 // searchInput 是标题栏右侧的搜索框，⌘F 把焦点送进来。
 func (app *App) searchInput(c *ui.Context) {
 	f := ui.SearchField(c.Key("diary-search"), &app.query).
-		Placeholder("搜索科目、章节或要点").Label("搜索日记").Width(230)
+		Placeholder("搜索科目、章节或要点").Label("搜索日记").Width(190)
 	if app.focusSearch {
 		f.Focus()
 		app.focusSearch = false
 	}
 }
 
-// filterDays 按搜索词算出要显示的下标。
+// filterDays 按科目筛选与搜索词算出要显示的日子。
 //
-// 今天总是显示（哪怕还没写），因为它是落笔的入口；搜索时不显示空的今天。
+// 返回 app.days 的下标；今天总是显示（哪怕还没写），因为它是落笔的入口，
+// 一旦有筛选条件就不再显示空的今天。
 func (app *App) filterDays() []int {
 	app.filtered = app.filtered[:0]
-	q := strings.ToLower(strings.TrimSpace(app.query))
 	for i := range app.days {
 		d := app.days[i]
-		if q == "" {
+		if !app.hasFilter() {
 			app.filtered = append(app.filtered, i)
 			continue
 		}
 		if d.Date == app.today && !d.HasEntries() {
 			continue
 		}
-		if dayMatches(d, q) {
+		if len(app.shownEntries(d)) > 0 {
 			app.filtered = append(app.filtered, i)
 		}
 	}
 	return app.filtered
 }
 
-// dayMatches 报告某一天是否命中搜索词。
-func dayMatches(d model.Day, q string) bool {
-	if strings.Contains(strings.ToLower(d.Date), q) ||
-		strings.Contains(strings.ToLower(model.DisplayDate(d.Date)), q) {
+// shownEntries 返回这一天在当前筛选下要显示的条目下标。
+//
+// 没有筛选时是全部条目；有科目筛选或搜索词时只留下命中的条目，
+// 这样一张卡片里不会混着「为什么要显示它」看不出来的记录。
+func (app *App) shownEntries(day model.Day) []int {
+	if !app.hasFilter() {
+		idx := make([]int, len(day.Entries))
+		for i := range idx {
+			idx[i] = i
+		}
+		return idx
+	}
+	out := make([]int, 0, len(day.Entries))
+	for i, e := range day.Entries {
+		if app.entryVisible(e) {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// entryVisible 报告一条记录是否满足当前的科目筛选与搜索词。
+//
+// 参数 e 是一条学习记录；科目必须完全相等（下拉框选出来的），
+// 搜索词则匹配科目、章、节、要点与备注。
+func (app *App) entryVisible(e model.Entry) bool {
+	if app.subjectFilter != "" && e.Subject != app.subjectFilter {
+		return false
+	}
+	q := strings.TrimSpace(app.query)
+	if q == "" {
 		return true
 	}
-	for _, e := range d.Entries {
-		if strings.Contains(strings.ToLower(e.Subject), q) ||
-			strings.Contains(strings.ToLower(e.Chapter), q) ||
-			strings.Contains(strings.ToLower(e.Section), q) ||
-			strings.Contains(strings.ToLower(e.Note), q) {
+	return entryMatches(e, q)
+}
+
+// entryMatches 报告一条记录里有没有 q（大小写不敏感）。
+//
+// 参数 q 是已经去掉首尾空白的搜索词。
+func entryMatches(e model.Entry, q string) bool {
+	if queryHit(e.Subject, q) || queryHit(e.Chapter, q) ||
+		queryHit(e.Section, q) || queryHit(e.Note, q) {
+		return true
+	}
+	for _, p := range e.Points {
+		if queryHit(p.Text, q) {
 			return true
-		}
-		for _, p := range e.Points {
-			if strings.Contains(strings.ToLower(p.Text), q) {
-				return true
-			}
 		}
 	}
 	return false
 }
 
 // dayCard 画一天：日期头与若干条学习记录。
+//
+// 参数 di 是这一日在 app.days 里的下标。卡片里只画当前筛选下可见的条目，
+// 所以按科目筛选时，一张卡片里不会出现别的科目。
 func (app *App) dayCard(c *ui.Context, di int) {
 	t := c.Theme()
 	if di < 0 || di >= len(app.days) {
@@ -141,26 +280,31 @@ func (app *App) dayCard(c *ui.Context, di int) {
 	day := app.days[di]
 	date := day.Date
 	rel := model.RelativeDay(date)
-	points := day.PointCount()
 
-	cardEl := ui.Column(c).Key("day-card-"+date).Padding(18).Gap(12).Radius(14).
+	shown := app.shownEntries(day)
+	points := 0
+	for _, ei := range shown {
+		points += len(day.Entries[ei].Points)
+	}
+
+	cardEl := ui.Column(c.Key("day-card-"+date)).Padding(18).Gap(12).Radius(14).
 		Background(cardBG(t)).Border(1, t.Border).
 		Shadow(0, 1, 2, 0, ui.RGBA(0, 0, 0, 0.04))
 
 	cardEl.Children(func() {
 		ui.Row(c).Gap(9).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, model.DisplayDate(date)).Font(fontSerif).
-				FontSize(16).Bold().SingleLine()
-			ui.Text(c, model.Weekday(model.MustDate(date))).FontSize(12).TextColor(t.TextMuted)
+			ui.Text(c, model.DisplayDate(date)).
+				FontSize(fsHeading).Bold().SingleLine()
+			ui.Text(c, model.Weekday(model.MustDate(date))).FontSize(fsSmall).TextColor(t.TextMuted)
 			if rel != "" {
 				pill(c, rel, t.Accent.Alpha(0.13), t.Accent)
 			}
 			if points > 0 {
 				if done := day.DonePoints(); done > 0 {
 					ui.Textf(c, "%d 条要点 · 已复习 %d", points, done).
-						FontSize(11.5).TextColor(t.TextMuted)
+						FontSize(fsCaption).TextColor(t.TextMuted)
 				} else {
-					ui.Textf(c, "%d 条要点", points).FontSize(11.5).TextColor(t.TextMuted)
+					ui.Textf(c, "%d 条要点", points).FontSize(fsCaption).TextColor(t.TextMuted)
 				}
 			}
 			ui.Spacer(c)
@@ -174,35 +318,44 @@ func (app *App) dayCard(c *ui.Context, di int) {
 
 		if len(day.Entries) == 0 {
 			ui.Text(c, "这一天还没有记录。").
-				FontSize(12.5).TextColor(t.TextMuted).Padding(2, 0)
+				FontSize(fsBody).TextColor(t.TextMuted).Padding(2, 0)
 			return
 		}
 
-		for j := range day.Entries {
-			if j > 0 {
+		for n, ei := range shown {
+			if n > 0 {
 				ui.Box(c).Height(1).Background(t.Border).Margin(0, 2)
 			}
-			app.entryBlock(c, di, j)
+			app.entryBlock(c, di, ei)
 		}
 	})
 }
 
 // entryBlock 是一条学习记录：科目、章节路径、要点清单、备注。
+//
+// 参数 di、ei 分别是这一日在 app.days 里的下标和条目在当天的下标。
+// 有搜索词时，命中的文字带底色。
 func (app *App) entryBlock(c *ui.Context, di, ei int) {
 	t := c.Theme()
 	e := &app.days[di].Entries[ei]
 	date := app.days[di].Date
 	id := e.ID
+	q := app.query
 
-	entry := ui.Column(c).Key("entry-" + id).Gap(7)
+	entry := ui.Column(c.Key("entry-" + id)).Gap(7)
 	hovered := entry.Hovered()
 
 	entry.Children(func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			pill(c, e.Subject, t.Accent.Alpha(0.13), t.Accent)
+			// 科目命中的话，把标签底色加深一点，一眼看出为什么这一天被搜到。
+			bg := t.Accent.Alpha(0.13)
+			if queryHit(e.Subject, q) {
+				bg = t.Accent.Alpha(0.26)
+			}
+			pill(c, e.Subject, bg, t.Accent)
 
 			if topic := topicLine(*e); topic != "" {
-				ui.Text(c, topic).FontSize(12).TextColor(t.TextMuted).
+				highlightedText(c, topic, q, fsSmall, t.TextMuted).
 					SingleLine().Grow(1)
 			} else {
 				ui.Spacer(c)
@@ -210,12 +363,12 @@ func (app *App) entryBlock(c *ui.Context, di, ei int) {
 
 			if e.Minutes > 0 {
 				ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
-					ui.Icon(c, iconClock).FontSize(11.5).TextColor(t.TextMuted)
-					ui.Text(c, formatMinutes(e.Minutes)).FontSize(11).TextColor(t.TextMuted)
+					ui.Icon(c, iconClock).FontSize(fsCaption).TextColor(t.TextMuted)
+					ui.Text(c, formatMinutes(e.Minutes)).FontSize(fsCaption).TextColor(t.TextMuted)
 				})
 			}
 			if e.At != "" {
-				ui.Text(c, e.At).FontSize(11).TextColor(t.TextMuted)
+				ui.Text(c, e.At).FontSize(fsCaption).TextColor(t.TextMuted)
 			}
 
 			// 编辑按钮一直在，平时半透明，鼠标移到这一条上才变亮。
@@ -238,7 +391,7 @@ func (app *App) entryBlock(c *ui.Context, di, ei int) {
 		if strings.TrimSpace(e.Note) != "" {
 			ui.Row(c).Gap(10).Padding(0, 4).Children(func() {
 				ui.Box(c).Width(2).Radius(2).Background(t.Border).Shrink(0)
-				ui.Text(c, e.Note).FontSize(12.5).TextColor(t.TextMuted).
+				highlightedText(c, e.Note, q, fsBody, t.TextMuted).
 					LineHeight(1.55).Grow(1)
 			})
 		}
@@ -247,22 +400,30 @@ func (app *App) entryBlock(c *ui.Context, di, ei int) {
 
 // pointRow 是一条要点：勾上表示已经复习。
 //
-// 勾选直接写进 model（&Points[k].Done），OnChange 再负责落库。
+// 参数 di、ei、pi 分别是日、条目、要点在各自切片里的下标。
+// 勾选直接写进 model（&Points[pi].Done），OnChange 再负责落库。
+//
+// 勾选框与文字的第一行对齐：要点可能折行，方框跟着第一行走，
+// 而不是跑到整段文字的中间。
 func (app *App) pointRow(c *ui.Context, di, ei, pi int) {
 	t := c.Theme()
 	p := &app.days[di].Entries[ei].Points[pi]
 	date := app.days[di].Date
 
 	ui.Row(c).Gap(9).AlignItems(ui.Start).Children(func() {
-		cb := ui.Checkbox(c.Key("pt-"+p.ID), &p.Done, "").Label(p.Text)
+		cb := checkbox(c, "pt-"+p.ID, &p.Done, p.Text).
+			Margin(pointCheckboxOffset, 0, 0, 0)
 		cb.Tooltip("标记为已复习")
 		cb.OnChange(func() { app.persist(date) })
 
-		text := ui.Text(c, p.Text).FontSize(12.5).LineHeight(1.45).Grow(1)
+		color := t.Text
 		if p.Done {
-			text.TextColor(t.TextMuted).Strikethrough()
-		} else {
-			text.TextColor(t.Text)
+			color = t.TextMuted
+		}
+		text := highlightedText(c, p.Text, app.query, fsBody, color).
+			LineHeight(1.45).Grow(1)
+		if p.Done {
+			text.Strikethrough()
 		}
 	})
 }
@@ -282,6 +443,8 @@ func (app *App) openEditor(date, entryID string) {
 	ed.Subject, ed.Chapter, ed.Section, ed.Points, ed.Note, ed.Minutes = "", "", "", "", "", 0
 
 	if entryID == "" {
+		// 正在按某个科目筛选时，新记录默认还是这个科目。
+		ed.Subject = app.subjectFilter
 		return
 	}
 	day := app.day(date)
@@ -327,25 +490,25 @@ func (app *App) diaryEditor(c *ui.Context) {
 		ui.Column(c).Width(520).Children(func() {
 			// 标题
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Icon(c, iconPen).FontSize(15).TextColor(t.Accent)
-				ui.Text(c, title).Font(fontSerif).FontSize(17).Bold().SingleLine()
+				ui.Icon(c, iconPen).FontSize(fsLead).TextColor(t.Accent)
+				ui.Text(c, title).FontSize(fsHeading).Bold().SingleLine()
 				ui.Spacer(c)
-				ui.Text(c, cmdName+" + Enter 保存").FontSize(10.5).TextColor(t.TextMuted)
+				ui.Text(c, cmdName+" + Enter 保存").FontSize(fsTiny).TextColor(t.TextMuted)
 				iconButton(c, "close-editor", "关闭", iconClose, func() { app.ed.Open = false })
 			})
 
-			ui.Scroll(c).MaxHeight(formHeight).Children(func() {
+			ui.Scroll(c).Scrollbars(false).MaxHeight(formHeight).Children(func() {
 				ui.Column(c).Gap(14).Children(func() {
 					// 日期 + 科目
 					ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
 						if editing {
 							ui.Column(c).Width(168).Gap(6).Children(func() {
 								ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
-									ui.Icon(c, iconCalendar).FontSize(11.5).TextColor(t.TextMuted)
-									ui.Text(c, "日期").FontSize(11.5).TextColor(t.TextMuted)
+									ui.Icon(c, iconCalendar).FontSize(fsCaption).TextColor(t.TextMuted)
+									ui.Text(c, "日期").FontSize(fsCaption).TextColor(t.TextMuted)
 								})
 								ui.Text(c, model.DisplayDate(app.ed.Date.Format(model.DateLayout))).
-									FontSize(12.5).Padding(7, 0)
+									FontSize(fsBody).Padding(7, 0)
 							})
 						} else {
 							ui.Column(c).Width(168).Children(func() {
@@ -378,7 +541,7 @@ func (app *App) diaryEditor(c *ui.Context) {
 						})
 					})
 					ui.Text(c, "章、节都可以留空，只写科目也能保存。").
-						FontSize(10.5).TextColor(t.TextMuted)
+						FontSize(fsTiny).TextColor(t.TextMuted)
 
 					ui.Field(c, "要点", func() {
 						ui.TextArea(c.Key("editor-points"), &app.ed.Points).Label("要点").
@@ -386,7 +549,7 @@ func (app *App) diaryEditor(c *ui.Context) {
 							Placeholder("一行一条，例如：\n页式虚拟存储器的地址映射\n页表的结构与访问流程")
 					})
 					ui.Text(c, "每行一条，会自动去掉开头的「- 」。").
-						FontSize(10.5).TextColor(t.TextMuted)
+						FontSize(fsTiny).TextColor(t.TextMuted)
 
 					// 时长 + 备注
 					ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
@@ -409,8 +572,8 @@ func (app *App) diaryEditor(c *ui.Context) {
 			// 校验错误放在滚动区外面：不管表单滚到哪里，都能立刻看到。
 			if app.ed.Err != "" {
 				ui.Row(c).Gap(6).AlignItems(ui.Center).Padding(4, 0, 0).Children(func() {
-					ui.Icon(c, iconAlert).FontSize(13).TextColor(t.Danger)
-					ui.Text(c, app.ed.Err).FontSize(12).TextColor(t.Danger).Grow(1)
+					ui.Icon(c, iconAlert).FontSize(fsBody).TextColor(t.Danger)
+					ui.Text(c, app.ed.Err).FontSize(fsSmall).TextColor(t.Danger).Grow(1)
 				})
 			}
 
@@ -418,7 +581,7 @@ func (app *App) diaryEditor(c *ui.Context) {
 			ui.Box(c).Height(1).Background(t.Border).Margin(6, -2, 0)
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(16, 0, 2).Children(func() {
 				if editing {
-					ui.Button(c, "删除这条").FontSize(12).TextColor(t.Danger).OnClick(func() {
+					ui.Button(c, "删除这条").FontSize(fsSmall).TextColor(t.Danger).OnClick(func() {
 						date := app.ed.Date.Format(model.DateLayout)
 						id := app.ed.EntryID
 						app.ed.Open = false
@@ -636,3 +799,9 @@ func (app *App) confirmDialog(c *ui.Context) {
 		}
 	}
 }
+
+// 要点输入框的行数范围：至少 6 行，最多长到 12 行。
+const (
+	editorMinLines = 6
+	editorMaxLines = 12
+)

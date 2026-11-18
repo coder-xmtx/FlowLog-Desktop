@@ -1,6 +1,7 @@
 package view
 
 import (
+	"fmt"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -34,9 +35,9 @@ func sampleApp(t *testing.T) *App {
 			t.Fatalf("SaveTodo(%s): %v", todo.ID, err)
 		}
 	}
-	if err := s.SaveSettings(model.Settings{
-		Theme: model.ThemeDark, UserName: "小明", Onboarded: true,
-	}); err != nil {
+	st := model.DefaultSettings()
+	st.UserName, st.Onboarded = "小明", true
+	if err := s.SaveSettings(st); err != nil {
 		t.Fatal(err)
 	}
 
@@ -156,14 +157,40 @@ func TestPreview(t *testing.T) {
 	render(t, dir, "home-light", app, 1200, 820)
 	app.router.Push("/diary")
 	render(t, dir, "diary-light", app, 1200, 820)
+
+	// 浅色下的搜索高亮
+	app.query = "虚拟存储器"
+	render(t, dir, "diary-search-light", app, 1200, 820)
+	app.query = ""
+
 	app.router.Push("/settings")
 	render(t, dir, "settings-light", app, 1200, 820)
 	app.settings.Theme = model.ThemeDark
+
+	// 搜索命中高亮（深色）
+	app.router.Push("/diary")
+	app.query = "虚拟存储器"
+	render(t, dir, "diary-search", app, 1200, 820)
+	app.query = ""
+
+	// 按科目筛选
+	app.subjectFilter = "计算机组成原理"
+	render(t, dir, "diary-filter", app, 1200, 820)
+	app.subjectFilter = ""
 
 	// 弹窗：写日记
 	app.router.Push("/diary")
 	app.openEditor(app.today, "")
 	render(t, dir, "editor", app, 1200, 820)
+
+	// 弹窗：要点很多时输入框跟着长高，但没有滚动条
+	app.ed.Open = false
+	app.openEditor(app.today, "")
+	for i := 0; i < 18; i++ {
+		app.ed.Points += fmt.Sprintf("第 %d 条要点，用来测试输入框长高以后的样子\n", i+1)
+	}
+	render(t, dir, "editor-many", app, 1200, 820)
+	app.ed.Open = false
 
 	// 弹窗：编辑已有的一条（校验错误常驻底部）
 	app.ed.Open = false

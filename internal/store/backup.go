@@ -60,16 +60,34 @@ func (s *Store) Export(w io.Writer) error {
 }
 
 // ExportFile 把备份写到 path。
+//
+// 先写同目录下的临时文件，成功后再改名：写到一半崩溃也不会留下一个
+// 看起来正常、其实截断了的备份文件。
 func (s *Store) ExportFile(path string) error {
-	f, err := os.Create(path)
+	tmp := path + ".tmp"
+	f, err := os.Create(tmp)
 	if err != nil {
 		return fmt.Errorf("创建备份文件: %w", err)
 	}
-	defer f.Close()
 	if err := s.Export(f); err != nil {
+		f.Close()
+		os.Remove(tmp)
 		return err
 	}
-	return f.Sync()
+	if err := f.Sync(); err != nil {
+		f.Close()
+		os.Remove(tmp)
+		return fmt.Errorf("写备份: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		os.Remove(tmp)
+		return fmt.Errorf("写备份: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		os.Remove(tmp)
+		return fmt.Errorf("重命名备份: %w", err)
+	}
+	return nil
 }
 
 // ReadBackup 解析并校验一份备份文件。

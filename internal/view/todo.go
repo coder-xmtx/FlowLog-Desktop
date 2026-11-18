@@ -47,9 +47,9 @@ func (app *App) todo(c *ui.Context) {
 		if total > 0 {
 			ui.Row(c).Gap(12).AlignItems(ui.Center).Padding(0, 32, 8).Children(func() {
 				ui.Progress(c, float64(done)/float64(total)).Grow(1).Height(5)
-				ui.Textf(c, "%d / %d", done, total).FontSize(11.5).TextColor(t.TextMuted)
+				ui.Textf(c, "%d / %d", done, total).FontSize(fsCaption).TextColor(t.TextMuted)
 				if done > 0 {
-					ui.Button(c, "清除已完成").FontSize(11.5).
+					ui.Button(c, "清除已完成").FontSize(fsCaption).
 						Tooltip("移除已完成的待办，可撤销").
 						OnClick(app.clearDone)
 				}
@@ -87,7 +87,7 @@ func (app *App) todo(c *ui.Context) {
 				ScrollbarAxes(false, true)
 
 			ui.Text(c, "按截止日期排序，没有截止日期的排在最后。").
-				FontSize(11).TextColor(t.TextMuted).Padding(10, 4, 0)
+				FontSize(fsCaption).TextColor(t.TextMuted).Padding(10, 4, 0)
 		})
 	})
 }
@@ -140,12 +140,12 @@ func (app *App) todoRow(c *ui.Context, index int) {
 	todo := &app.todos[index]
 	id := todo.ID
 
-	row := ui.Row(c).Key("todo-row-"+id).Height(36).Gap(10).
+	row := ui.Row(c.Key("todo-row-"+id)).Height(36).Gap(10).
 		AlignItems(ui.Center).Padding(0, 10).Radius(8)
 	hovered := row.Hovered()
 
 	row.Children(func() {
-		cb := ui.Checkbox(c.Key("todo-cb-"+id), &todo.Done, "").Label(todo.Text)
+		cb := checkbox(c, "todo-cb-"+id, &todo.Done, todo.Text)
 		cb.Tooltip("完成 / 取消完成")
 		cb.OnChange(func() {
 			if i := app.todoIndex(id); i >= 0 {
@@ -153,7 +153,7 @@ func (app *App) todoRow(c *ui.Context, index int) {
 			}
 		})
 
-		text := ui.Text(c, todo.Text).FontSize(13).Grow(1).SingleLine()
+		text := ui.Text(c, todo.Text).FontSize(fsBody).Grow(1).SingleLine()
 		if todo.Done {
 			text.TextColor(t.TextMuted).Strikethrough()
 		}
@@ -165,7 +165,7 @@ func (app *App) todoRow(c *ui.Context, index int) {
 		del := ui.Button(c.Key("todo-del-"+id), "").
 			Label("删除这条待办").Tooltip("删除").
 			Size(26, 26).Padding(0).Radius(6).MinWidth(0)
-		del.Children(func() { ui.Icon(c, iconTrash).FontSize(13) })
+		del.Children(func() { ui.Icon(c, iconTrash).FontSize(fsBody) })
 		del.OnClick(func() { app.deleteTodo(id) })
 		if !hovered {
 			// 占着位置，但既不画出来也不接收指针。
@@ -191,7 +191,7 @@ func (app *App) dueChip(c *ui.Context, todo model.Todo) {
 	if todo.Done {
 		fg = t.TextMuted
 	}
-	ui.Text(c, label).FontSize(10.5).TextColor(fg).Shrink(0)
+	ui.Text(c, label).FontSize(fsTiny).TextColor(fg).Shrink(0)
 }
 
 // duePickerButton 是输入行里的「截止日期」按钮与它的弹层。
@@ -203,9 +203,9 @@ func (app *App) duePickerButton(c *ui.Context) {
 	}
 
 	b := ui.Button(c.Key("todo-due"), "").Label("选择截止日期").Tooltip("设置截止日期").
-		FontSize(12).Shrink(0)
+		FontSize(fsSmall).Shrink(0)
 	b.Children(func() {
-		ui.Icon(c, iconCalendar).FontSize(13)
+		ui.Icon(c, iconCalendar).FontSize(fsBody)
 		ui.Text(c, label).SingleLine()
 	})
 	b.OnClick(func() {
@@ -222,14 +222,14 @@ func (app *App) duePickerButton(c *ui.Context) {
 
 	ui.Popover(c, b, &app.duePicker, func() {
 		ui.Column(c).Width(300).Gap(10).Padding(4).Children(func() {
-			ui.Text(c, "截止日期").FontSize(11.5).FontWeight(600).TextColor(t.TextMuted)
+			ui.Text(c, "截止日期").FontSize(fsCaption).FontWeight(600).TextColor(t.TextMuted)
 
 			ui.Row(c).Gap(8).Children(func() {
-				ui.Button(c, "今天").FontSize(11.5).OnClick(func() { app.setDue(0) })
-				ui.Button(c, "明天").FontSize(11.5).OnClick(func() { app.setDue(1) })
-				ui.Button(c, "本周末").FontSize(11.5).OnClick(app.setWeekend)
+				ui.Button(c, "今天").FontSize(fsCaption).OnClick(func() { app.setDue(0) })
+				ui.Button(c, "明天").FontSize(fsCaption).OnClick(func() { app.setDue(1) })
+				ui.Button(c, "本周末").FontSize(fsCaption).OnClick(app.setWeekend)
 				ui.Spacer(c)
-				ui.Button(c, "清除").FontSize(11.5).OnClick(func() {
+				ui.Button(c, "清除").FontSize(fsCaption).OnClick(func() {
 					app.todoDue = time.Time{}
 					app.duePicker = false
 				})

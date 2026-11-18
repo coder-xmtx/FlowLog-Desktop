@@ -25,9 +25,9 @@ func (app *App) onboardingDialog(c *ui.Context) {
 	ui.Modal(c, &app.onboarding.Open, func() {
 		ui.Column(c).Width(420).Gap(16).Children(func() {
 			ui.Column(c).Gap(6).Children(func() {
-				ui.Text(c, "先认识一下").Font(fontSerif).FontSize(20).Bold()
+				ui.Text(c, "先认识一下").FontSize(fsHero).Bold()
 				ui.Text(c, "留下一个称呼，首页会用它问候你。之后可以在设置里修改。").
-					FontSize(12.5).TextColor(t.TextMuted).LineHeight(1.6)
+					FontSize(fsBody).TextColor(t.TextMuted).LineHeight(1.6)
 			})
 
 			ui.Field(c, "称呼", func() {
@@ -42,7 +42,7 @@ func (app *App) onboardingDialog(c *ui.Context) {
 			})
 
 			if app.onboarding.Err != "" {
-				ui.Text(c, app.onboarding.Err).FontSize(12).TextColor(t.Danger)
+				ui.Text(c, app.onboarding.Err).FontSize(fsSmall).TextColor(t.Danger)
 			}
 
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
@@ -124,7 +124,7 @@ func (app *App) settingsAccount(c *ui.Context) {
 			})
 		})
 		ui.Text(c, "首页的问候会用到这个称呼，随时可以修改。").
-			FontSize(11.5).TextColor(t.TextMuted)
+			FontSize(fsCaption).TextColor(t.TextMuted)
 	})
 }
 
@@ -157,11 +157,13 @@ func (app *App) settingsAppearance(c *ui.Context) {
 				}
 			})
 		ui.Text(c, "默认深色；选择「跟随系统」后，应用会随系统的深浅色切换。").
-			FontSize(11.5).TextColor(t.TextMuted)
+			FontSize(fsCaption).TextColor(t.TextMuted)
 	})
 }
 
-// settingsData 是数据库信息与备份、迁移。
+// settingsData 是数据库信息、备份与自动备份。
+//
+// 参数 days、entries、points、todos 是全库的规模统计，由 settingsPage 算好传入。
 func (app *App) settingsData(c *ui.Context, days, entries, points, todos int) {
 	t := c.Theme()
 	path := app.store.Path()
@@ -169,14 +171,14 @@ func (app *App) settingsData(c *ui.Context, days, entries, points, todos int) {
 	sectionCard(c, "数据", "本地 SQLite 数据库", func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Textf(c, "%d 天 · %d 条记录 · %d 条要点 · %d 条待办",
-				days, entries, points, todos).FontSize(12.5)
+				days, entries, points, todos).FontSize(fsBody)
 			ui.Spacer(c)
-			ui.Text(c, formatSize(app.store.Size())).FontSize(11.5).TextColor(t.TextMuted)
+			ui.Text(c, formatSize(app.store.Size())).FontSize(fsCaption).TextColor(t.TextMuted)
 		})
 
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Box(c).Grow(1).Padding(7, 10).Radius(7).Background(t.Surface).Children(func() {
-				ui.Text(c, path).FontSize(11.5).Font("monospace").Selectable().SingleLine().
+				ui.Text(c, path).FontSize(fsCaption).Font("monospace").Selectable().SingleLine().
 					Tooltip(path)
 			})
 			iconTextButton(c, "copy-db-path", "复制路径", iconCopy, func() {
@@ -191,7 +193,48 @@ func (app *App) settingsData(c *ui.Context, days, entries, points, todos int) {
 		})
 
 		ui.Text(c, "备份是一个 JSON 文件，包含全部日记、待办与设置，可以复制到别的机器上恢复。").
-			FontSize(11.5).TextColor(t.TextMuted).LineHeight(1.6)
+			FontSize(fsCaption).TextColor(t.TextMuted).LineHeight(1.6)
+
+		app.autoBackupRow(c)
+	})
+}
+
+// autoBackupRow 是「自动备份」那一块：开关、保留份数、最近一次备份与手动备份。
+func (app *App) autoBackupRow(c *ui.Context) {
+	t := c.Theme()
+	ui.Box(c).Height(1).Background(t.Border).Margin(2, 0, 2)
+
+	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, "自动备份").FontSize(fsBody).FontWeight(600)
+
+		// Switch 直接绑定设置字段；OnChange 在绑定值写入之后才跑，写库即可。
+		sw := ui.Switch(c.Key("backup-switch"), &app.settings.AutoBackup).
+			Label("开启自动备份").Tooltip("每天第一次启动时自动备份一次")
+		sw.OnChange(app.saveSettings)
+
+		ui.Text(c, "每天首次启动时备份").FontSize(fsCaption).TextColor(t.TextMuted)
+		ui.Spacer(c)
+
+		// 「保留 N 份」：NumberInput 绑定 float64，本地副本每帧从设置推出，
+		// 用户改了之后由 OnChange 写回 App 并落库。
+		keep := float64(app.settings.BackupKeep)
+		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, "保留").FontSize(fsCaption).TextColor(t.TextMuted)
+			num := ui.NumberInput(c.Key("backup-keep"), &keep,
+				model.BackupKeepMin, model.BackupKeepMax, 1).Label("保留份数").Width(112)
+			num.OnChange(func() {
+				app.settings.BackupKeep = int(keep)
+				app.saveSettings()
+			})
+			ui.Text(c, "份").FontSize(fsCaption).TextColor(t.TextMuted)
+		})
+	})
+
+	line, dir := app.backupStatus()
+	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, line).FontSize(fsCaption).TextColor(t.TextMuted).SingleLine().Grow(1).
+			Tooltip(dir)
+		ui.Button(c, "立即备份").FontSize(fsCaption).OnClick(app.backupNow)
 	})
 }
 
@@ -208,7 +251,7 @@ func (app *App) settingsShortcuts(c *ui.Context) {
 		ui.Column(c).Gap(2).Children(func() {
 			for _, k := range keys {
 				kvRow(c, k.Key, func() {
-					ui.Text(c, k.What).FontSize(12.5).TextColor(c.Theme().TextMuted)
+					ui.Text(c, k.What).FontSize(fsBody).TextColor(c.Theme().TextMuted)
 				})
 			}
 		})
@@ -225,26 +268,26 @@ func (app *App) settingsAbout(c *ui.Context) {
 			}
 			ui.Column(c).Gap(3).Children(func() {
 				ui.Row(c).Gap(8).AlignItems(ui.Baseline).Children(func() {
-					ui.Text(c, appName).Font(fontSerif).FontSize(20).Bold()
-					ui.Text(c, appNameEn).FontSize(12).TextColor(t.TextMuted)
+					ui.Text(c, appName).FontSize(fsHero).Bold()
+					ui.Text(c, appNameEn).FontSize(fsSmall).TextColor(t.TextMuted)
 					pill(c, "v"+appVersion, t.Accent.Alpha(0.13), t.Accent)
 				})
-				ui.Text(c, appTagline).FontSize(12).TextColor(t.TextMuted)
+				ui.Text(c, appTagline).FontSize(fsSmall).TextColor(t.TextMuted)
 			})
 		})
 
 		ui.Box(c).Height(1).Background(t.Border)
 
-		kvRow(c, "作者", func() { ui.Text(c, appAuthor).FontSize(12.5) })
+		kvRow(c, "作者", func() { ui.Text(c, appAuthor).FontSize(fsBody) })
 		kvRow(c, "仓库", func() {
-			ui.Link(c, appRepoURL, appRepoURL).FontSize(12.5)
+			ui.Link(c, appRepoURL, appRepoURL).FontSize(fsBody)
 		})
-		kvRow(c, "许可证", func() { ui.Text(c, appLicense).FontSize(12.5) })
+		kvRow(c, "许可证", func() { ui.Text(c, appLicense).FontSize(fsBody) })
 		kvRow(c, "界面", func() {
-			ui.Text(c, "MyGo "+mygoVersionText()+" · 原生 UI").FontSize(12.5)
+			ui.Text(c, "MyGo "+mygoVersionText()+" · 原生 UI").FontSize(fsBody)
 		})
 		kvRow(c, "编译", func() {
-			ui.Text(c, "Go "+goVersion()+" · "+platformName()).FontSize(12.5).
+			ui.Text(c, "Go "+goVersion()+" · "+platformName()).FontSize(fsBody).
 				TextColor(t.TextMuted)
 		})
 
@@ -259,20 +302,20 @@ func (app *App) updateRow(c *ui.Context) {
 
 	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 		ui.Column(c).Gap(2).Grow(1).MinWidth(0).Children(func() {
-			ui.Text(c, "版本更新").FontSize(12.5).FontWeight(600)
+			ui.Text(c, "版本更新").FontSize(fsBody).FontWeight(600)
 			switch {
 			case !updateSupported():
 				ui.Text(c, "开发版与包管理器安装的版本不支持自动更新。").
-					FontSize(11.5).TextColor(t.TextMuted)
+					FontSize(fsCaption).TextColor(t.TextMuted)
 			case app.update.Installing:
 				ui.Textf(c, "正在下载并安装，%d%%", int(app.update.Progress*100)).
-					FontSize(11.5).TextColor(t.TextMuted)
+					FontSize(fsCaption).TextColor(t.TextMuted)
 			case app.update.Version != "":
 				ui.Text(c, "发现新版本 v"+app.update.Version+"，安装后会自动重启。").
-					FontSize(11.5).TextColor(t.TextMuted)
+					FontSize(fsCaption).TextColor(t.TextMuted)
 			default:
 				ui.Text(c, "从 GitHub Releases 获取更新。").
-					FontSize(11.5).TextColor(t.TextMuted)
+					FontSize(fsCaption).TextColor(t.TextMuted)
 			}
 		})
 
@@ -297,20 +340,20 @@ func (app *App) updateRow(c *ui.Context) {
 		ui.Progress(c, app.update.Progress).FillWidth().Height(4)
 	}
 	if app.update.Err != "" {
-		ui.Text(c, app.update.Err).FontSize(11.5).TextColor(t.Danger)
+		ui.Text(c, app.update.Err).FontSize(fsCaption).TextColor(t.Danger)
 	}
 
 	// 有新版本时先看新版本的说明，否则看当前版本更新了什么。
 	switch {
 	case app.update.Notes != "" && app.update.Version != "":
-		ui.Text(c, "v"+app.update.Version+" 更新内容").FontSize(11.5).
+		ui.Text(c, "v"+app.update.Version+" 更新内容").FontSize(fsCaption).
 			FontWeight(600).TextColor(t.TextMuted)
-		ui.Text(c, notesText(app.update.Notes, 6)).FontSize(11.5).
+		ui.Text(c, notesText(app.update.Notes, 6)).FontSize(fsCaption).
 			TextColor(t.TextMuted).LineHeight(1.65)
 	case app.releaseNotes != "":
-		ui.Text(c, "本次更新（v"+appVersion+"）").FontSize(11.5).
+		ui.Text(c, "本次更新（v"+appVersion+"）").FontSize(fsCaption).
 			FontWeight(600).TextColor(t.TextMuted)
-		ui.Text(c, notesText(app.releaseNotes, 8)).FontSize(11.5).
+		ui.Text(c, notesText(app.releaseNotes, 8)).FontSize(fsCaption).
 			TextColor(t.TextMuted).LineHeight(1.65)
 	}
 }
@@ -336,9 +379,9 @@ func notesText(md string, max int) string {
 
 // iconTextButton 是「图标 + 文字」的次要按钮。
 func iconTextButton(c *ui.Context, key any, label string, icon *ui.SVG, on func()) ui.Element {
-	b := ui.Button(c.Key(key), "").Label(label).FontSize(12)
+	b := ui.Button(c.Key(key), "").Label(label).FontSize(fsSmall)
 	b.Children(func() {
-		ui.Icon(c, icon).FontSize(13)
+		ui.Icon(c, icon).FontSize(fsBody)
 		ui.Text(c, label).SingleLine()
 	})
 	return b.OnClick(on)

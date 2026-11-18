@@ -99,6 +99,9 @@ func fetchBingImage() (*ui.Bitmap, string, error) {
 	return bmp, meta.Copyright, nil
 }
 
+// getBingMeta 请求必应每日一图的接口，返回图片地址与版权信息。
+//
+// 参数 client 用来复用连接与超时设置。
 func getBingMeta(client *http.Client) (bingMeta, error) {
 	var meta bingMeta
 	resp, err := client.Get(bingEndpoint)

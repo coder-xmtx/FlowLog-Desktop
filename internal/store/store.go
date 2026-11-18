@@ -204,6 +204,9 @@ func (s *Store) Days() ([]model.Day, error) {
 	return days, nil
 }
 
+// loadEntries 把条目与要点读进已经建好的 days 切片。
+//
+// 参数 index 是日期到 days 下标的映射；返回第一个出错的地方。
 func (s *Store) loadEntries(days []model.Day, index map[string]int) error {
 	ctx := context.Background()
 	rows, err := s.db.Query(ctx, `SELECT id, date, subject, chapter, section, note, minutes, at
@@ -402,6 +405,8 @@ func (s *Store) DeleteAll() error {
 // ---------------------------------------------------------------- 设置
 
 // Settings 读出应用设置，缺失的键用默认值补齐。
+//
+// 旧版本的数据库没有自动备份相关的键，读出来就是默认值（开启、保留 14 份）。
 func (s *Store) Settings() (model.Settings, error) {
 	st := model.DefaultSettings()
 	rows, err := s.db.Query(context.Background(), `SELECT key, value FROM settings`)
@@ -416,27 +421,39 @@ func (s *Store) Settings() (model.Settings, error) {
 			st.UserName = text(row[1])
 		case "onboarded":
 			st.Onboarded = text(row[1]) == "1"
+		case "autoBackup":
+			st.AutoBackup = text(row[1]) == "1"
+		case "backupKeep":
+			st.BackupKeep = int(number(row[1]))
 		}
 	}
-	return st, nil
+	return model.NormalizeSettings(st), nil
 }
 
 // SaveSettings 写入应用设置。
+//
+// 写入前统一收敛：外观只接受 light/dark/system，保留份数限制在合法区间。
 func (s *Store) SaveSettings(st model.Settings) error {
-	st.Theme = model.NormalizeTheme(st.Theme)
-	onboarded := "0"
-	if st.Onboarded {
-		onboarded = "1"
-	}
+	st = model.NormalizeSettings(st)
 	stmts := []sqlite.Statement{
 		{SQL: `INSERT OR REPLACE INTO settings (key, value) VALUES ('theme', ?)`, Args: []any{st.Theme}},
 		{SQL: `INSERT OR REPLACE INTO settings (key, value) VALUES ('userName', ?)`, Args: []any{st.UserName}},
-		{SQL: `INSERT OR REPLACE INTO settings (key, value) VALUES ('onboarded', ?)`, Args: []any{onboarded}},
+		{SQL: `INSERT OR REPLACE INTO settings (key, value) VALUES ('onboarded', ?)`, Args: []any{boolString(st.Onboarded)}},
+		{SQL: `INSERT OR REPLACE INTO settings (key, value) VALUES ('autoBackup', ?)`, Args: []any{boolString(st.AutoBackup)}},
+		{SQL: `INSERT OR REPLACE INTO settings (key, value) VALUES ('backupKeep', ?)`, Args: []any{st.BackupKeep}},
 	}
 	if _, err := s.db.Transaction(context.Background(), stmts); err != nil {
 		return fmt.Errorf("保存设置: %w", err)
 	}
 	return nil
+}
+
+// boolString 把布尔值写成设置表里约定的 "1" / "0"。
+func boolString(b bool) string {
+	if b {
+		return "1"
+	}
+	return "0"
 }
 
 // ---------------------------------------------------------------- 小工具
@@ -449,6 +466,7 @@ func validDate(date string) error {
 	return nil
 }
 
+// boolInt 把布尔值写成 SQLite 的 0 / 1。
 func boolInt(b bool) int {
 	if b {
 		return 1

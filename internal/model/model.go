@@ -116,6 +116,10 @@ type Settings struct {
 	UserName string `json:"userName,omitempty"`
 	// Onboarded 记录首次启动引导是否已经完成。
 	Onboarded bool `json:"onboarded,omitempty"`
+	// AutoBackup 表示是否每天自动备份一次数据。
+	AutoBackup bool `json:"autoBackup"`
+	// BackupKeep 是自动备份保留的份数（BackupKeepMin–BackupKeepMax）。
+	BackupKeep int `json:"backupKeep"`
 }
 
 // 外观取值。新装默认深色。
@@ -136,8 +140,45 @@ func NormalizeTheme(theme string) string {
 }
 
 // DefaultSettings 返回新装应用的默认设置。
+//
+// 默认深色外观；自动备份默认打开，保留最近 14 份——数据无价，
+// 备份的代价只是几 KB 磁盘。
 func DefaultSettings() Settings {
-	return Settings{Theme: ThemeDark}
+	return Settings{
+		Theme:      ThemeDark,
+		AutoBackup: true,
+		BackupKeep: DefaultBackupKeep,
+	}
+}
+
+// 自动备份保留份数的取值范围与默认值。
+const (
+	BackupKeepMin     = 3
+	BackupKeepMax     = 60
+	DefaultBackupKeep = 14
+)
+
+// NormalizeSettings 把设置里越界的字段收敛到合法范围。
+//
+// 读数据库、读备份、保存之前都调用它，避免 0 份或负数份备份这种状态。
+func NormalizeSettings(st Settings) Settings {
+	st.Theme = NormalizeTheme(st.Theme)
+	st.BackupKeep = NormalizeBackupKeep(st.BackupKeep)
+	return st
+}
+
+// NormalizeBackupKeep 把保留份数收敛到 [BackupKeepMin, BackupKeepMax]。
+func NormalizeBackupKeep(n int) int {
+	if n <= 0 {
+		return DefaultBackupKeep
+	}
+	if n < BackupKeepMin {
+		return BackupKeepMin
+	}
+	if n > BackupKeepMax {
+		return BackupKeepMax
+	}
+	return n
 }
 
 // NewID 返回 16 位十六进制随机 ID。
@@ -289,6 +330,7 @@ func (e Entry) TopicParts() []string {
 	return out
 }
 
+// trimAll 去掉每一段的首尾空白，并丢掉空段。
 func trimAll(parts []string) []string {
 	out := make([]string, 0, len(parts))
 	for _, p := range parts {

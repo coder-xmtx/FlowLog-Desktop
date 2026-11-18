@@ -2,6 +2,7 @@ package view
 
 import (
 	"fmt"
+	"time"
 
 	"flowlog-desktop/internal/model"
 	"flowlog-desktop/internal/store"
@@ -117,7 +118,14 @@ func (app *App) chooseBackup() {
 }
 
 // restoreBackup 在后台写库，完成后刷新界面。
+//
+// 覆盖之前先自动存一份「恢复前」的备份：恢复本身不可撤销，
+// 万一选错了文件，还能从备份目录里找回原来的数据。
 func (app *App) restoreBackup(b *store.Backup) {
+	if _, err := app.store.BackupBeforeRestore(app.backupDir(), time.Now()); err != nil {
+		app.post(func() { app.toastError("恢复前的备份失败", err.Error()) })
+		return
+	}
 	if err := app.store.Restore(b); err != nil {
 		app.post(func() { app.toastError("恢复失败", err.Error()) })
 		return
