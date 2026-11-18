@@ -23,6 +23,7 @@ import (
 //go:embed CHANGELOG.md
 var changelog string
 
+// main 是程序入口：声明语言、打开数据库、开窗口，最后等事件循环退出。
 func main() {
 	// 界面只有中文：声明语言后，日期、数字等内置控件也使用中文格式。
 	mygo.App.SetLanguages("zh-Hans")

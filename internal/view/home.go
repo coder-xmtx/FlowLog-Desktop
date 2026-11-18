@@ -74,10 +74,10 @@ func (app *App) home(c *ui.Context) {
 
 	ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 		ui.Column(c).Padding(32, 32, 10).Gap(3).Children(func() {
-			ui.Text(c, app.greeting(c.Now().Hour())+"。").Font(fontSerif).
-				FontSize(27).Bold().SingleLine()
+			ui.Text(c, app.greeting(c.Now().Hour())+"。").
+				FontSize(fsDisplay).Bold().SingleLine()
 			ui.Text(c, model.DisplayDateFull(app.today)+" · "+model.Weekday(date)).
-				FontSize(12.5).TextColor(t.TextMuted).SingleLine()
+				FontSize(fsBody).TextColor(t.TextMuted).SingleLine()
 		})
 
 		ui.Scroll(c).Grow(1).Padding(8, 32, 28).Gap(16).Children(func() {
@@ -150,14 +150,14 @@ func heroContent(c *ui.Context, quote, credit string, onImage bool) {
 	}
 	ui.Column(c).Fill().Justify(ui.End).Padding(24, 26).Gap(9).Children(func() {
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, iconSparkle).FontSize(12).TextColor(labelColor)
-			ui.Text(c, "今日寄语").FontSize(10.5).FontWeight(600).
+			ui.Icon(c, iconSparkle).FontSize(fsSmall).TextColor(labelColor)
+			ui.Text(c, "今日寄语").FontSize(fsTiny).FontWeight(600).
 				LetterSpacing(1.2).TextColor(labelColor)
 		})
-		ui.Text(c, quote).Font(fontSerif).FontSize(21).FontWeight(600).LineHeight(1.45).
+		ui.Text(c, quote).FontSize(fsHero).FontWeight(600).LineHeight(1.45).
 			TextColor(quoteColor).MaxWidth(660)
 		if credit != "" {
-			ui.Text(c, credit).FontSize(10).TextColor(creditColor).SingleLine().
+			ui.Text(c, credit).FontSize(fsTiny).TextColor(creditColor).SingleLine().
 				MaxWidth(660).Tooltip(credit)
 		}
 	})
@@ -171,10 +171,10 @@ func (app *App) statCard(c *ui.Context, icon *ui.SVG, label, value string) {
 		Shadow(0, 1, 2, 0, ui.RGBA(0, 0, 0, 0.04)).
 		Children(func() {
 			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-				ui.Icon(c, icon).FontSize(13).TextColor(accentInk(t))
-				ui.Text(c, label).FontSize(11.5).TextColor(t.TextMuted).SingleLine()
+				ui.Icon(c, icon).FontSize(fsBody).TextColor(accentInk(t))
+				ui.Text(c, label).FontSize(fsCaption).TextColor(t.TextMuted).SingleLine()
 			})
-			ui.Text(c, value).TextColor(t.Text).Font(fontSerif).FontSize(22).Bold().
+			ui.Text(c, value).TextColor(t.Text).FontSize(fsHero).Bold().
 				SingleLine().FontFeatures("lnum")
 		})
 }
@@ -199,9 +199,9 @@ func (app *App) todayLearning(c *ui.Context, today model.Day) ui.Element {
 			ui.Column(c).Gap(4).Children(func() {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 					dot(c, 6, accentInk(t))
-					ui.Text(c, e.Subject).FontSize(13).FontWeight(600).SingleLine()
+					ui.Text(c, e.Subject).FontSize(fsBody).FontWeight(600).SingleLine()
 					if topic := topicLine(e); topic != "" {
-						ui.Text(c, topic).FontSize(11.5).
+						ui.Text(c, topic).FontSize(fsCaption).
 							TextColor(t.TextMuted).SingleLine().Grow(1)
 					}
 				})
@@ -213,17 +213,17 @@ func (app *App) todayLearning(c *ui.Context, today model.Day) ui.Element {
 					summary = firstLine(e.Note)
 				}
 				if summary != "" {
-					ui.Text(c, summary).FontSize(12.5).TextColor(t.TextMuted).
+					ui.Text(c, summary).FontSize(fsBody).TextColor(t.TextMuted).
 						SingleLine().Padding(0, 14)
 				}
 			})
 		}
 
 		if extra := len(today.Entries) - max; extra > 0 {
-			ui.Textf(c, "另有 %d 条记录", extra).FontSize(11.5).TextColor(t.TextMuted)
+			ui.Textf(c, "另有 %d 条记录", extra).FontSize(fsCaption).TextColor(t.TextMuted)
 		}
 
-		ui.Link(c, "在日记里查看全部", "/diary").FontSize(12).TextColor(accentInk(t))
+		ui.Link(c, "在日记里查看全部", "/diary").FontSize(fsSmall).TextColor(accentInk(t))
 	})
 }
 
@@ -234,7 +234,7 @@ func (app *App) dueCard(c *ui.Context) ui.Element {
 
 	return sectionCard(c, "待办提醒", "", func() {
 		if len(due) == 0 {
-			ui.Text(c, "近两天没有到期的待办。").FontSize(12.5).TextColor(t.TextMuted)
+			ui.Text(c, "近两天没有到期的待办。").FontSize(fsBody).TextColor(t.TextMuted)
 			ui.Row(c).Children(func() {
 				ui.Button(c, "查看待办").OnClick(func() { app.router.Push("/todo") })
 			})
@@ -249,13 +249,13 @@ func (app *App) dueCard(c *ui.Context) ui.Element {
 		}
 
 		if extra := len(due) - 4; extra > 0 {
-			ui.Textf(c, "另有 %d 条", extra).FontSize(11.5).TextColor(t.TextMuted)
+			ui.Textf(c, "另有 %d 条", extra).FontSize(fsCaption).TextColor(t.TextMuted)
 		}
 
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Textf(c, "%d 条待处理", len(due)).FontSize(11.5).TextColor(t.TextMuted)
+			ui.Textf(c, "%d 条待处理", len(due)).FontSize(fsCaption).TextColor(t.TextMuted)
 			ui.Spacer(c)
-			ui.Link(c, "全部待办", "/todo").FontSize(12).TextColor(accentInk(t))
+			ui.Link(c, "全部待办", "/todo").FontSize(fsSmall).TextColor(accentInk(t))
 		})
 	})
 }
@@ -270,13 +270,13 @@ func (app *App) dueRow(c *ui.Context, todo model.Todo) {
 	}
 
 	ui.Row(c).Gap(9).AlignItems(ui.Center).Children(func() {
-		cb := ui.Checkbox(c.Key("home-todo-"+id), &app.todos[idx].Done, "").Label(todo.Text)
+		cb := checkbox(c, "home-todo-"+id, &app.todos[idx].Done, todo.Text)
 		cb.OnChange(func() {
 			if i := app.todoIndex(id); i >= 0 {
 				app.saveTodo(app.todos[i])
 			}
 		})
-		ui.Text(c, todo.Text).FontSize(12.5).Grow(1).SingleLine()
+		ui.Text(c, todo.Text).FontSize(fsBody).Grow(1).SingleLine()
 
 		state := todo.DueStateOf(app.today)
 		label := todo.DueLabel(app.today)
@@ -287,14 +287,14 @@ func (app *App) dueRow(c *ui.Context, todo model.Todo) {
 		case model.DueToday:
 			color = accentInk(t)
 		}
-		ui.Text(c, label).FontSize(10.5).TextColor(color)
+		ui.Text(c, label).FontSize(fsTiny).TextColor(color)
 	})
 }
 
 // recentStrip 是首页底部的最近 7 天。
 func (app *App) recentStrip(c *ui.Context) {
 	ui.Column(c).Gap(10).Children(func() {
-		ui.Text(c, "最近 7 天").Font(fontSerif).FontSize(14).FontWeight(600)
+		ui.Text(c, "最近 7 天").FontSize(fsLead).FontWeight(600)
 		ui.Row(c).Gap(8).Children(func() {
 			for i := 6; i >= 0; i-- {
 				date := model.MustDate(app.today).AddDate(0, 0, -i)
@@ -320,15 +320,15 @@ func (app *App) dayCell(c *ui.Context, date time.Time, isToday bool) {
 		fg = t.Text
 	}
 
-	cell := ui.Column(c).Key("day-" + key).Width(46).Gap(6).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, model.WeekdayShort(date)).FontSize(10.5).TextColor(t.TextMuted)
+	cell := ui.Column(c.Key("day-" + key)).Width(46).Gap(6).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, model.WeekdayShort(date)).FontSize(fsTiny).TextColor(t.TextMuted)
 
 		box := ui.Box(c).Size(32, 32).Radius(9).Background(fill).Center()
 		if isToday {
 			box.Border(1.5, accentInk(t))
 		}
 		box.Children(func() {
-			ui.Text(c, strconv.Itoa(date.Day())).FontSize(12).FontWeight(600).TextColor(fg)
+			ui.Text(c, strconv.Itoa(date.Day())).FontSize(fsSmall).FontWeight(600).TextColor(fg)
 		})
 	})
 	cell.Tooltip(key + " · " + daySummary(app, key))

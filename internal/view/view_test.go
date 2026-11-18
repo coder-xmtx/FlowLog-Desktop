@@ -19,7 +19,9 @@ func newTestApp(t *testing.T) *App {
 		t.Fatalf("store.Open: %v", err)
 	}
 	t.Cleanup(func() { s.Close() })
-	if err := s.SaveSettings(model.Settings{Theme: model.ThemeDark, Onboarded: true}); err != nil {
+	st := model.DefaultSettings()
+	st.Onboarded = true
+	if err := s.SaveSettings(st); err != nil {
 		t.Fatal(err)
 	}
 	app, err := NewApp(s)
@@ -625,5 +627,130 @@ func TestReleaseNotesExtract(t *testing.T) {
 	}
 	if !strings.Contains(notesText(got, 5), "· 新功能 A") {
 		t.Errorf("notesText = %q", notesText(got, 5))
+	}
+}
+
+// TestDiarySubjectFilter 检查按科目筛选：卡片里只留下这个科目的记录，
+// 副标题说清在看什么，新记录默认沿用这个科目。
+func TestDiarySubjectFilter(t *testing.T) {
+	app := sampleApp(t)
+	app.router.Push("/diary")
+	tt := ui.NewTester(app.View, 1200, 820)
+	tt.Frame()
+
+	if got := len(app.filterDays()); got != len(app.days) {
+		t.Fatalf("没有筛选时 %d 天, 期望全部 %d 天", got, len(app.days))
+	}
+
+	app.subjectFilter = "数据结构"
+	tt.Frame()
+	if !tt.HasText("数据结构 · 2 天 · 3 条要点") {
+		t.Errorf("副标题不对: %q", tt.Texts())
+	}
+	for _, di := range app.filterDays() {
+		for _, ei := range app.shownEntries(app.days[di]) {
+			if got := app.days[di].Entries[ei].Subject; got != "数据结构" {
+				t.Errorf("%s 里混进了 %q", app.days[di].Date, got)
+			}
+		}
+	}
+	if tt.HasText("计算机组成原理") {
+		t.Errorf("筛掉别的科目后不该还显示它: %q", tt.Texts())
+	}
+
+	// 新记录默认沿用正在筛选的科目。
+	app.openEditor(app.today, "")
+	if app.ed.Subject != "数据结构" {
+		t.Errorf("新记录的科目 = %q, 期望沿用筛选的科目", app.ed.Subject)
+	}
+	app.ed.Open = false
+
+	// 没有匹配时给出空状态与清空入口。
+	app.subjectFilter = "不存在的科目"
+	tt.Frame()
+	if !tt.HasText("没有匹配的记录") || !tt.HasText("清空筛选") {
+		t.Errorf("空状态不对: %q", tt.Texts())
+	}
+	app.clearFilters()
+	if app.subjectFilter != "" || app.query != "" {
+		t.Errorf("清空筛选后 = %q / %q", app.subjectFilter, app.query)
+	}
+}
+
+// TestDiarySearchAndFilter 检查科目筛选与搜索词可以叠加。
+func TestDiarySearchAndFilter(t *testing.T) {
+	app := sampleApp(t)
+	app.router.Push("/diary")
+
+	app.query = "邻接矩阵"
+	app.subjectFilter = "数据结构"
+	if got := len(app.filterDays()); got != 1 {
+		t.Fatalf("数据结构 + 邻接矩阵 = %d 天, 期望 1", got)
+	}
+	// 同一天里，别的科目也会因为搜索词被筛掉。
+	day := app.day(app.today)
+	shown := app.shownEntries(day)
+	if len(shown) != 1 || day.Entries[shown[0]].Subject != "数据结构" {
+		t.Errorf("命中的条目 = %+v", shown)
+	}
+
+	app.subjectFilter = "计算机组成原理"
+	if got := len(app.filterDays()); got != 0 {
+		t.Errorf("计组 + 邻接矩阵 = %d 天, 期望 0", got)
+	}
+}
+
+// TestBackupSwitchThroughUI 用设置页的开关真的关掉自动备份，并确认落库。
+func TestBackupSwitchThroughUI(t *testing.T) {
+	app := newTestApp(t)
+	app.router.Push("/settings")
+	tt := ui.NewTester(app.View, 1200, 820)
+	tt.Frame()
+
+	if !app.settings.AutoBackup {
+		t.Fatalf("默认应该开启自动备份")
+	}
+	if err := tt.Click("开启自动备份"); err != nil {
+		t.Fatalf("点开关: %v", err)
+	}
+	if app.settings.AutoBackup {
+		t.Errorf("开关没有关掉")
+	}
+	st, err := app.store.Settings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.AutoBackup {
+		t.Errorf("关掉自动备份没有落库: %+v", st)
+	}
+}
+
+// TestAutoBackupOnStart 确认启动时会补一份当天的备份，且一天只补一次。
+func TestAutoBackupOnStart(t *testing.T) {
+	app := sampleApp(t)
+	app.autoBackup()
+
+	dir := app.backupDir()
+	info, ok := store.LatestBackup(dir)
+	if !ok {
+		t.Fatalf("%s 里没有备份", dir)
+	}
+	if !strings.HasPrefix(info.Name, "flowlog-auto-") {
+		t.Errorf("备份文件名 = %q", info.Name)
+	}
+
+	// 再跑一次：今天已经备份过，不该多出一份。
+	app.autoBackup()
+	latest, _ := store.LatestBackup(dir)
+	if latest.Name != info.Name {
+		t.Errorf("同一天备了两次: %q → %q", info.Name, latest.Name)
+	}
+
+	// 关掉开关就不再备份。
+	app.settings.AutoBackup = false
+	app.autoBackup()
+	latest, _ = store.LatestBackup(dir)
+	if latest.Name != info.Name {
+		t.Errorf("关掉开关后仍然备份了")
 	}
 }

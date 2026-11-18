@@ -40,10 +40,13 @@ type App struct {
 	lastDark bool
 
 	// 日记页
-	diaryList   ui.ListState
-	query       string
-	focusSearch bool
-	filtered    []int
+	diaryList ui.ListState
+	// query 是搜索框里的关键词，空字符串表示不搜索。
+	query string
+	// subjectFilter 是按科目筛选时选中的科目，空字符串表示全部科目。
+	subjectFilter string
+	focusSearch   bool
+	filtered      []int
 	// revealDate 是侧边栏日历点中的日期：日记页构建完成后滚到那一行。
 	revealDate string
 
@@ -150,13 +153,17 @@ func NewApp(s *store.Store) (*App, error) {
 	return app, nil
 }
 
-// Start 做那些要等窗口就绪之后才能开始的事：背景图、更新检查。
+// Start 做那些要等窗口就绪之后才能开始的事：
+// 首次启动引导、当日背景图、自动备份、更新检查。
+//
+// 备份与联网都在后台进行，任何一项失败都不影响窗口使用。
 func (app *App) Start() {
 	if !app.settings.Onboarded {
 		app.onboarding.Open = true
 		app.onboarding.Name = app.settings.UserName
 	}
 	app.loadBackground()
+	go app.autoBackup()
 	app.checkForUpdatesLater()
 }
 
@@ -357,6 +364,7 @@ func (app *App) toast(title, desc string) {
 	app.toasts = append(app.toasts, pendingToast{Title: title, Desc: desc})
 }
 
+// toastError 是一条红色的错误提示。
 func (app *App) toastError(title, desc string) {
 	app.toasts = append(app.toasts, pendingToast{Title: title, Desc: desc, Type: "error"})
 }
@@ -446,8 +454,8 @@ func (app *App) brand(c *ui.Context) {
 			ui.Box(c).Size(30, 30).Radius(8).Background(ui.Hex(brandOrange)).Shrink(0)
 		}
 		ui.Column(c).Gap(0).Children(func() {
-			ui.Text(c, "流记").Font(fontSerif).FontSize(16).Bold().SingleLine()
-			ui.Text(c, "FLOWLOG").FontSize(9.5).LetterSpacing(1.4).
+			ui.Text(c, "流记").FontSize(fsHeading).Bold().SingleLine()
+			ui.Text(c, "FLOWLOG").FontSize(fsTiny).LetterSpacing(1.4).
 				TextColor(t.TextMuted).SingleLine()
 		})
 	})
@@ -466,14 +474,14 @@ func (app *App) sidebarFooter(c *ui.Context) {
 			if app.effectiveDark(c) {
 				icon, label, tip = iconSun, "浅色", "切换到浅色"
 			}
-			b := ui.Button(c.Key("theme-toggle"), "").Label(tip).Tooltip(tip).FontSize(11.5)
+			b := ui.Button(c.Key("theme-toggle"), "").Label(tip).Tooltip(tip).FontSize(fsCaption)
 			b.Children(func() {
-				ui.Icon(c, icon).FontSize(12)
+				ui.Icon(c, icon).FontSize(fsSmall)
 				ui.Text(c, label).SingleLine()
 			})
 			b.OnClick(app.toggleTheme)
 			ui.Spacer(c)
-			ui.Text(c, "v"+appVersion).FontSize(11).TextColor(t.TextMuted)
+			ui.Text(c, "v"+appVersion).FontSize(fsCaption).TextColor(t.TextMuted)
 		})
 	})
 }

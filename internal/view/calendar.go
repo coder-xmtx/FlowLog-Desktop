@@ -22,7 +22,7 @@ func (app *App) monthCalendar(c *ui.Context) {
 			})
 
 			title := ui.Text(c, fmt.Sprintf("%d 年 %d 月", year, int(month))).
-				FontSize(11.5).FontWeight(600).TextColor(t.Text)
+				FontSize(fsCaption).FontWeight(600).TextColor(t.Text)
 			title.Grow(1).TextAlign(ui.Center).Cursor(ui.CursorPointer).
 				Tooltip("回到本月").Label("回到本月")
 			if title.Clicked() {
@@ -39,7 +39,7 @@ func (app *App) monthCalendar(c *ui.Context) {
 		ui.Row(c).Children(func() {
 			for _, w := range []string{"一", "二", "三", "四", "五", "六", "日"} {
 				ui.Box(c).Grow(1).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, w).FontSize(9.5).TextColor(t.TextMuted)
+					ui.Text(c, w).FontSize(fsTiny).TextColor(t.TextMuted)
 				})
 			}
 		})
@@ -85,7 +85,7 @@ func (app *App) dayPill(c *ui.Context, year, month, day int) {
 		label += "，有日记"
 	}
 
-	box := ui.Box(c).Key("cal-" + date).Height(24).Radius(6).
+	box := ui.Box(c.Key("cal-" + date)).Height(24).Radius(6).
 		Background(fill).Center().Label(label).Tooltip(label).
 		Cursor(ui.CursorPointer)
 	if date == app.today {
@@ -97,7 +97,7 @@ func (app *App) dayPill(c *ui.Context, year, month, day int) {
 		box.Border(1.5, ring)
 	}
 	box.Children(func() {
-		txt := ui.Text(c, fmt.Sprintf("%d", day)).FontSize(11).TextColor(fg)
+		txt := ui.Text(c, fmt.Sprintf("%d", day)).FontSize(fsCaption).TextColor(fg)
 		if has {
 			txt.FontWeight(600)
 		}
