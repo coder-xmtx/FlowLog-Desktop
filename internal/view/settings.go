@@ -241,7 +241,7 @@ func (app *App) settingsAbout(c *ui.Context) {
 		})
 		kvRow(c, "许可证", func() { ui.Text(c, appLicense).FontSize(12.5) })
 		kvRow(c, "界面", func() {
-			ui.Text(c, "MyGo "+mygoVersionText()+" · 原生 UI（非 WebView）").FontSize(12.5)
+			ui.Text(c, "MyGo "+mygoVersionText()+" · 原生 UI").FontSize(12.5)
 		})
 		kvRow(c, "编译", func() {
 			ui.Text(c, "Go "+goVersion()+" · "+platformName()).FontSize(12.5).
