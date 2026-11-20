@@ -4,34 +4,37 @@ import (
 	"fmt"
 	"time"
 
+	"flowlog-desktop/internal/app"
+	design "flowlog-desktop/internal/design"
+
 	"github.com/egoist/mygo/ui"
 )
 
-// monthCalendar 是侧边栏里的月历：有日记的日子填色，今天描边。
+// MonthCalendar 是侧边栏里的月历：有记录的日子填主色容器色，今天描边。
 //
-// 点某一天会跳到日记页并滚到那一天，这是「翻旧账」最顺手的入口。
-func (app *App) monthCalendar(c *ui.Context) {
-	t := c.Theme()
-	first := app.calMonth
+// 点某一天会跳到学记页并滚到那一天，这是「翻旧账」最顺手的入口。
+func MonthCalendar(c *ui.Context, a *app.App) {
+	p := design.PaletteOf(c)
+	first := a.CalMonth
 	year, month := first.Year(), first.Month()
 
-	ui.Column(c).Padding(8, 12, 6).Gap(6).Children(func() {
-		ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
-			navButton(c, "cal-prev", "上个月", iconLeft, func() {
-				app.calMonth = first.AddDate(0, -1, 0)
+	ui.Column(c).Padding(4, 6, 6).Gap(8).Children(func() {
+		ui.Row(c).Gap(2).AlignItems(ui.Center).Children(func() {
+			design.IconButton(c, "cal-prev", "上个月", design.IconLeft, func() {
+				a.CalMonth = first.AddDate(0, -1, 0)
 			})
 
 			title := ui.Text(c, fmt.Sprintf("%d 年 %d 月", year, int(month))).
-				FontSize(fsCaption).FontWeight(600).TextColor(t.Text)
+				FontSize(design.FontCaption).FontWeight(600).TextColor(p.OnSurface)
 			title.Grow(1).TextAlign(ui.Center).Cursor(ui.CursorPointer).
 				Tooltip("回到本月").Label("回到本月")
 			if title.Clicked() {
 				now := time.Now()
-				app.calMonth = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.Local)
+				a.CalMonth = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.Local)
 			}
 
-			navButton(c, "cal-next", "下个月", iconRight, func() {
-				app.calMonth = first.AddDate(0, 1, 0)
+			design.IconButton(c, "cal-next", "下个月", design.IconRight, func() {
+				a.CalMonth = first.AddDate(0, 1, 0)
 			})
 		})
 
@@ -39,17 +42,17 @@ func (app *App) monthCalendar(c *ui.Context) {
 		ui.Row(c).Children(func() {
 			for _, w := range []string{"一", "二", "三", "四", "五", "六", "日"} {
 				ui.Box(c).Grow(1).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, w).FontSize(fsTiny).TextColor(t.TextMuted)
+					ui.Text(c, w).FontSize(design.FontTiny).TextColor(p.OnSurfaceVariant)
 				})
 			}
 		})
 
-		app.calendarGrid(c, first, int(month))
+		calendarGrid(c, a, first, int(month))
 	})
 }
 
 // calendarGrid 画日期格子：先是月初的空格，再是 1..n。
-func (app *App) calendarGrid(c *ui.Context, first time.Time, month int) {
+func calendarGrid(c *ui.Context, a *app.App, first time.Time, month int) {
 	// 周一为一周的第一天：Go 的 Sunday=0，换算成 Monday=0。
 	offset := (int(first.Weekday()) + 6) % 7
 	days := time.Date(first.Year(), first.Month()+1, 0, 0, 0, 0, 0, time.Local).Day()
@@ -60,60 +63,55 @@ func (app *App) calendarGrid(c *ui.Context, first time.Time, month int) {
 		for i := 0; i < rows*7; i++ {
 			day := i - offset + 1
 			if day < 1 || day > days {
-				ui.Box(c).Height(24)
+				ui.Box(c).Height(28)
 				continue
 			}
-			app.dayPill(c, first.Year(), month, day)
+			dayPill(c, a, first.Year(), month, day)
 		}
 	})
 }
 
 // dayPill 是月历里的一格。
-func (app *App) dayPill(c *ui.Context, year, month, day int) {
-	t := c.Theme()
+func dayPill(c *ui.Context, a *app.App, year, month, day int) {
+	p := design.PaletteOf(c)
 	date := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local).
 		Format("2006-01-02")
-	has := app.hasEntries(date)
+	has := a.HasEntries(date)
+	today := date == a.Today
 
-	fill, fg := ui.Transparent, t.TextMuted
+	fill, fg := ui.Transparent, p.OnSurfaceVariant
 	if has {
-		fill, fg = t.Accent, t.AccentText
+		fill, fg = p.PrimaryContainer, p.OnPrimaryContainer
 	}
 
 	label := fmt.Sprintf("%d 月 %d 日", month, day)
 	if has {
-		label += "，有日记"
+		label += "，有记录"
 	}
 
-	box := ui.Box(c.Key("cal-" + date)).Height(24).Radius(6).
-		Background(fill).Center().Label(label).Tooltip(label).
-		Cursor(ui.CursorPointer)
-	if date == app.today {
-		// 今天描边：有日记的格子用深色边，否则用强调色边，两种都能看见。
-		ring := accentInk(t)
+	box := ui.Box(c.Key("cal-" + date)).Height(28).Radius(14).Center().
+		Label(label).Tooltip(label).Cursor(ui.CursorPointer)
+	if today {
+		ring := p.Primary
 		if has {
-			ring = t.AccentText
+			ring = p.OnPrimaryContainer
 		}
 		box.Border(1.5, ring)
 	}
 	box.Children(func() {
-		txt := ui.Text(c, fmt.Sprintf("%d", day)).FontSize(fsCaption).TextColor(fg)
+		txt := ui.Text(c, fmt.Sprintf("%d", day)).FontSize(design.FontCaption).TextColor(fg)
 		if has {
 			txt.FontWeight(600)
 		}
 	})
+	// 悬停时浮起一层很淡的主色，鼠标移上去有过渡而不是突然变化。
+	target := fill
+	if box.Hovered() {
+		target = fill.Mix(p.Primary, 0.10)
+	}
+	box.Background(box.AnimateColor("hover", target, design.MotionState))
 	box.OnClick(func() {
-		app.revealDate = date
-		app.router.Push("/diary")
+		a.RevealDate = date
+		a.Router.Push("/study")
 	})
-}
-
-// navButton 是月历左右的小箭头。
-func navButton(c *ui.Context, key, label string, glyph *ui.SVG, on func()) {
-	b := ui.Button(c.Key(key), "").Label(label).Tooltip(label).
-		Size(30, 30).Padding(0).Radius(5).MinWidth(0).Center()
-	b.Children(func() {
-		ui.Icon(c, glyph).FontSize(20)
-	})
-	b.OnClick(on)
 }

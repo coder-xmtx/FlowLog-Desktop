@@ -1,4 +1,4 @@
-package view
+package app
 
 import (
 	"encoding/json"
@@ -32,37 +32,37 @@ type bingMeta struct {
 	CopyrightLink string `json:"copyright_link"`
 }
 
-// loadBackground 先读当天缓存，没有再去后台取图。
+// LoadBackground 先读当天缓存，没有再去后台取图。
 //
 // 网络请求都在 goroutine 里；结果通过 Window.Update 回到主线程写入，
-// 这样视图读 app.bg 时没有数据竞争。
-func (app *App) loadBackground() {
+// 这样视图读 a.BG 时没有数据竞争。
+func (a *App) LoadBackground() {
 	if bmp, credit, ok := cachedBackground(); ok {
-		app.bg, app.bgCopyright = bmp, credit
+		a.BG, a.BGCopyright = bmp, credit
 		return
 	}
-	app.bgLoading = true
-	go app.fetchBackground()
+	a.BGLoading = true
+	go a.FetchBackground()
 }
 
-// fetchBackground 在后台拉取必应每日一图。
-func (app *App) fetchBackground() {
+// FetchBackground 在后台拉取必应每日一图。
+func (a *App) FetchBackground() {
 	bmp, credit, err := fetchBingImage()
-	app.publishBackground(bmp, credit, err)
+	a.PublishBackground(bmp, credit, err)
 }
 
-// publishBackground 回到主线程写入背景（失败则保留渐变兜底）。
-func (app *App) publishBackground(bmp *ui.Bitmap, credit string, err error) {
+// PublishBackground 回到主线程写入背景（失败则保留渐变兜底）。
+func (a *App) PublishBackground(bmp *ui.Bitmap, credit string, err error) {
 	apply := func() {
-		app.bgLoading = false
+		a.BGLoading = false
 		if err != nil || bmp == nil {
-			app.bg = nil
+			a.BG = nil
 			return
 		}
-		app.bg, app.bgCopyright = bmp, credit
+		a.BG, a.BGCopyright = bmp, credit
 	}
-	if app.win != nil {
-		app.win.Update(apply)
+	if a.Win != nil {
+		a.Win.Update(apply)
 		return
 	}
 	apply()
