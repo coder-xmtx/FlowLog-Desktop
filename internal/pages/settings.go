@@ -64,7 +64,7 @@ func settingsAppearance(c *ui.Context, a *app.App) {
 			choice = 2
 		}
 		ui.Segmented(c.Key("settings-theme"), &choice, "深色", "浅色", "跟随系统").
-			Label("外观").FillEqually().
+			Label("外观").FillEqually().Width(400).
 			OnChange(func() {
 				theme := model.ThemeDark
 				switch choice {
