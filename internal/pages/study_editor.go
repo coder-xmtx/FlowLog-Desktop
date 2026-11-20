@@ -92,7 +92,7 @@ func StudyEditor(c *ui.Context, a *app.App) {
 							})
 						})
 					})
-					ui.Text(c, "章、节都可以留空，只写科目也能保存。").
+					ui.Text(c, "章、节都可以留空，只写科目也能保存").
 						FontSize(design.FontTiny).TextColor(p.OnSurfaceVariant)
 
 					ui.Field(c, "要点", func() {
@@ -101,7 +101,7 @@ func StudyEditor(c *ui.Context, a *app.App) {
 							ScrollbarAxes(false, false).
 							Placeholder("一行一条，例如：\n页式虚拟存储器的地址映射\n页表的结构与访问流程")
 					})
-					ui.Text(c, "每行一条，会自动去掉开头的「- 」。").
+					ui.Text(c, "每行一条，会自动去掉开头的「- 」").
 						FontSize(design.FontTiny).TextColor(p.OnSurfaceVariant)
 
 					// 时长 + 备注

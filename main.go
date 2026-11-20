@@ -58,7 +58,11 @@ func main() {
 			MinHeight: 560,
 			// 记住窗口位置与大小（由 MyGo 存在用户数据目录里）。
 			StateKey: "main",
-			Content:  ui.View(func(c *ui.Context) { view.Root(c, a) }),
+			// 自绘标题栏：去掉系统标题栏与按钮，由界面的 titleBar 补上。
+			TitleBarStyle:     mygo.TitleBarHidden,
+			TitleBarHeight:    38,
+			HideWindowButtons: true,
+			Content:           ui.View(func(c *ui.Context) { view.Root(c, a) }),
 		})
 		a.SetWindow(win)
 		a.Start()

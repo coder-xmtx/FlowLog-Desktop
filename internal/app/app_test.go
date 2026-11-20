@@ -258,3 +258,51 @@ func TestStreak(t *testing.T) {
 		t.Errorf("streak = %d, 期望 2", got)
 	}
 }
+
+// TestNotesFlow 检查随笔的保存、搜索、删除与撤销。
+func TestNotesFlow(t *testing.T) {
+	a := newTestApp(t)
+
+	a.OpenNoteEditor(a.Today, "")
+	a.SaveNoteEditor()
+	if a.NoteEditor.Err == "" {
+		t.Errorf("空内容应该提示错误")
+	}
+
+	a.NoteEditor.Text = "今天发生了一件小事"
+	a.SaveNoteEditor()
+	if len(a.Notes) != 1 {
+		t.Fatalf("随笔数 = %d", len(a.Notes))
+	}
+	if a.NoteEditor.Open {
+		t.Errorf("保存后弹窗应该关闭")
+	}
+
+	a.NoteQuery = "小事"
+	if got := len(a.FilteredNotes()); got != 1 {
+		t.Errorf("搜索命中 %d 条", got)
+	}
+	a.NoteQuery = "不相干"
+	if got := len(a.FilteredNotes()); got != 0 {
+		t.Errorf("不该命中，得到 %d 条", got)
+	}
+	a.NoteQuery = ""
+
+	a.DeleteNote(a.Notes[0].ID)
+	if len(a.Notes) != 0 {
+		t.Fatalf("删除后还有随笔")
+	}
+	var undo func()
+	for _, toast := range a.TakeToasts() {
+		if toast.OnAct != nil {
+			undo = toast.OnAct
+		}
+	}
+	if undo == nil {
+		t.Fatalf("没有撤销提示")
+	}
+	undo()
+	if len(a.Notes) != 1 {
+		t.Errorf("撤销后应有 1 条，得到 %d", len(a.Notes))
+	}
+}

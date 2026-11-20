@@ -34,6 +34,8 @@ type App struct {
 	Days []model.Day
 	// Todos 全部待办，独立于学记。
 	Todos []model.Todo
+	// Notes 全部随笔，按日期倒序。
+	Notes []model.Note
 	// Today 是今天的日期字符串，跨零点时由 RollOver 更新。
 	Today string
 
@@ -87,6 +89,12 @@ type App struct {
 	Onboarding OnboardingState
 	// DuePicker 表示截止日期弹层是否打开。
 	DuePicker bool
+	// NoteList 是随笔列表的滚动与测量状态。
+	NoteList ui.ListState
+	// NoteEditor 是「写随笔」弹窗的草稿。
+	NoteEditor NoteEditorState
+	// NoteQuery 是随笔页的搜索词。
+	NoteQuery string
 
 	// ---- 首页背景（必应每日一图）----
 
@@ -195,6 +203,10 @@ func New(s *store.Store) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	notes, err := s.Notes()
+	if err != nil {
+		return nil, err
+	}
 	settings, err := s.Settings()
 	if err != nil {
 		return nil, err
@@ -207,11 +219,14 @@ func New(s *store.Store) (*App, error) {
 		Today:    model.Today(),
 		Days:     days,
 		Todos:    todos,
+		Notes:    notes,
 		Settings: settings,
 		CalMonth: time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.Local),
 		CalView:  now,
 	}
 	a.EnsureToday()
+	// 页面之间淡入淡出：从首页进二级页不再横滑，切换都在原地。
+	a.Router.Transition = ui.TransitionFade
 	return a, nil
 }
 
@@ -438,4 +453,30 @@ func (a *App) Post(fn func()) {
 		return
 	}
 	fn()
+}
+
+// MinimizeWindow 最小化窗口。没有窗口（测试）时什么也不做。
+func (a *App) MinimizeWindow() {
+	if a.Win != nil {
+		a.Win.Minimize()
+	}
+}
+
+// ToggleMaximizeWindow 在最大化与还原之间切换。
+func (a *App) ToggleMaximizeWindow() {
+	if a.Win != nil {
+		a.Win.ToggleMaximize()
+	}
+}
+
+// CloseWindow 关闭窗口。
+func (a *App) CloseWindow() {
+	if a.Win != nil {
+		a.Win.Close()
+	}
+}
+
+// Maximized 报告窗口现在是不是最大化。
+func (a *App) Maximized() bool {
+	return a.Win != nil && a.Win.IsMaximized()
 }

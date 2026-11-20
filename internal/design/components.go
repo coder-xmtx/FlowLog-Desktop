@@ -6,6 +6,7 @@ import (
 
 	"flowlog-desktop/internal/model"
 
+	"github.com/egoist/mygo/plugins/loading"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -286,6 +287,71 @@ func TextButton(c *ui.Context, key any, label string, on func()) ui.Element {
 	return b.OnClick(on)
 }
 
+// SegmentOption 是图标分段控件的一段：一个图标加一个标签。
+type SegmentOption struct {
+	// Icon 是小图标，可为 nil。
+	Icon *ui.SVG
+	// Label 是文字。
+	Label string
+}
+
+// IconSegmented 是带图标的分段控件，用于外观这类三选一。
+//
+// 参数 choice 绑定选中的下标，opts 是各段的图标与文字；选择变化时
+// 返回值的 Changed 会报告，调用方按需写回自己的状态。
+func IconSegmented(c *ui.Context, key any, choice *int, width float32, opts ...SegmentOption) ui.Element {
+	p := PaletteOf(c)
+	parts := ui.SegmentedBase(c.Key(key), choice, len(opts))
+	track := parts.Track.Height(44).Width(width).Padding(4).Radius(RadiusFull).
+		Gap(2).Shrink(0).Background(p.SurfaceContainerHigh)
+
+	track.Children(func() {
+		for i, opt := range opts {
+			seg := parts.Segment(i)
+			selected := i == *choice
+			fg := p.OnSurfaceVariant
+			if seg.Hovered() {
+				// 鼠标悬停时，改变背景色
+				seg.Background(HoverLayer(seg, "hover", p.Primary, seg.Hovered()))
+			}
+			if selected {
+				fg = p.OnSurface
+			}
+			seg.Grow(1).Height(36).Radius(RadiusFull).Gap(8).Center()
+			seg.Children(func() {
+				if opt.Icon != nil {
+					ui.Icon(c, opt.Icon).FontSize(FontLead).TextColor(fg)
+				}
+				ui.Text(c, opt.Label).FontSize(FontSmall).
+					FontWeight(500).TextColor(fg).SingleLine()
+			})
+			if selected {
+				bg := p.SurfaceContainerLowest
+				if p.Dark {
+					bg = p.SurfaceContainerHighest
+				}
+				seg.Background(bg).Shadow(0, 1, 3, 0, ui.RGBA(23, 32, 74, 0.12))
+			}
+		}
+	})
+	return track
+}
+
+// MenuButton 是弹层里的一项：整行宽、左对齐、hover 浮起一层底色。
+//
+// 参数 key 是稳定身份，label 是文字，on 是点击动作。
+func MenuButton(c *ui.Context, key any, label string, on func()) ui.Element {
+	p := PaletteOf(c)
+	b := ui.ButtonBase(c.Key(key)).Label(label).Height(36).Padding(0, 10).
+		Radius(RadiusXS).Shrink(0)
+	hovered := b.Hovered()
+	b.Children(func() {
+		ui.Text(c, label).FontSize(FontBody).TextColor(p.OnSurface).Grow(1).SingleLine()
+	})
+	b.Background(HoverLayer(b, "hover", p.OnSurface, hovered))
+	return b.OnClick(on)
+}
+
 // DangerTextButton 是红色的文字按钮，用于「删除」这类破坏性动作。
 func DangerTextButton(c *ui.Context, key any, label string, on func()) ui.Element {
 	p := PaletteOf(c)
@@ -351,4 +417,18 @@ func FirstLine(s string) string {
 		s = s[:i]
 	}
 	return strings.TrimSpace(s)
+}
+
+// BusyButton 是一个「进行中」的按钮样式：加载指示器 + 文字，不可点击。
+//
+// 用于「更新中」这类操作已经开始的场合，代替把按钮直接换成进度条。
+func BusyButton(c *ui.Context, label string) ui.Element {
+	p := PaletteOf(c)
+	return ui.Row(c).Height(ControlHeight).Padding(0, 18).Radius(RadiusFull).
+		Gap(8).AlignItems(ui.Center).Shrink(0).Border(1, p.OutlineVariant).
+		Children(func() {
+			loading.Arc(c, loading.Options{Size: 16, Color: p.Primary})
+			ui.Text(c, label).FontSize(FontBody).FontWeight(600).
+				TextColor(p.OnSurfaceVariant).SingleLine()
+		})
 }

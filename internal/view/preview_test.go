@@ -30,6 +30,11 @@ func sampleApp(t *testing.T) *app.App {
 			t.Fatalf("SaveDay(%s): %v", d.Date, err)
 		}
 	}
+	for _, note := range sampleNotes() {
+		if err := s.SaveNote(note); err != nil {
+			t.Fatalf("SaveNote(%s): %v", note.ID, err)
+		}
+	}
 	for _, todo := range sampleTodos() {
 		if err := s.SaveTodo(todo); err != nil {
 			t.Fatalf("SaveTodo(%s): %v", todo.ID, err)
@@ -112,6 +117,17 @@ func sampleDays() []model.Day {
 	}
 }
 
+// sampleNotes 是两条随笔。
+func sampleNotes() []model.Note {
+	today := model.MustDate(model.Today())
+	return []model.Note{
+		{ID: "n1", Date: model.Today(), At: "22:10",
+			Text: "今天把状态机那章看完了，比想象中顺。晚上去操场走了两圈，风很大。"},
+		{ID: "n2", Date: today.AddDate(0, 0, -2).Format(model.DateLayout), At: "20:05",
+			Text: "第一次用流记写随笔，先随手记一句。"},
+	}
+}
+
 // sampleTodos 是几条待办，覆盖过期、今天到期、明天到期与无截止日期。
 func sampleTodos() []model.Todo {
 	today := model.Today()
@@ -144,6 +160,7 @@ func TestPreview(t *testing.T) {
 	for _, p := range []struct{ path, name string }{
 		{"/", "home"},
 		{"/study", "study"},
+		{"/notes", "notes"},
 		{"/todo", "todo"},
 		{"/settings", "settings"},
 	} {
@@ -174,6 +191,11 @@ func TestPreview(t *testing.T) {
 	a.OpenEditor(model.Today(), "e-today-1")
 	render(t, dir, "editor", a, 1200, 820)
 	a.Editor.Open = false
+
+	// 写随笔弹窗（带内容）
+	a.OpenNoteEditor(model.Today(), "n1")
+	render(t, dir, "note-editor", a, 1200, 820)
+	a.NoteEditor.Open = false
 
 	// 空弹窗 + 校验失败
 	a.OpenEditor(a.Today, "")

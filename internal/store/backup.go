@@ -15,7 +15,8 @@ import (
 //
 //	1  v0.3：待办放在 Day 里
 //	2  v0.4：待办独立，带截止日期
-const BackupFormat = 2
+//	3  v0.6：加入随笔
+const BackupFormat = 3
 
 // Backup 是导出的备份文件内容：一个 JSON 文件带走全部数据。
 type Backup struct {
@@ -26,6 +27,7 @@ type Backup struct {
 	Settings   model.Settings `json:"settings"`
 	Days       []model.Day    `json:"days"`
 	Todos      []model.Todo   `json:"todos"`
+	Notes      []model.Note   `json:"notes"`
 }
 
 // Export 把全部数据写成一份 JSON 备份。
@@ -35,6 +37,10 @@ func (s *Store) Export(w io.Writer) error {
 		return err
 	}
 	todos, err := s.Todos()
+	if err != nil {
+		return err
+	}
+	notes, err := s.Notes()
 	if err != nil {
 		return err
 	}
@@ -49,6 +55,7 @@ func (s *Store) Export(w io.Writer) error {
 		Settings:   st,
 		Days:       days,
 		Todos:      todos,
+		Notes:      notes,
 	}
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)
@@ -119,6 +126,14 @@ func ReadBackup(path string) (*Backup, error) {
 			b.Todos[i].ID = model.NewID()
 		}
 	}
+	for i := range b.Notes {
+		if err := validDate(b.Notes[i].Date); err != nil {
+			return nil, fmt.Errorf("备份里有一条随笔的日期不合法: %w", err)
+		}
+		if b.Notes[i].ID == "" {
+			b.Notes[i].ID = model.NewID()
+		}
+	}
 	b.Settings.Theme = model.NormalizeTheme(b.Settings.Theme)
 	return &b, nil
 }
@@ -138,6 +153,11 @@ func (s *Store) Restore(b *Backup) error {
 	}
 	for _, todo := range b.Todos {
 		if err := s.SaveTodo(todo); err != nil {
+			return err
+		}
+	}
+	for _, note := range b.Notes {
+		if err := s.SaveNote(note); err != nil {
 			return err
 		}
 	}

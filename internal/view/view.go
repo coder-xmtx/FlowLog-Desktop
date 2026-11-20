@@ -24,31 +24,38 @@ func Root(c *ui.Context, a *app.App) {
 	flushToasts(c, a)
 	shortcuts(c, a)
 
-	root := ui.Row(c).Fill().AlignItems(ui.Stretch)
+	root := ui.Column(c).Fill()
 	root.Children(func() {
-		Sidebar(c, a)
-		a.Router.View(c, func(r *ui.Route) {
-			switch {
-			case r.Match("/"):
-				r.Title("流记 · 首页")
-				pages.Home(c, a)
-			case r.Match("/study"):
-				r.Title("流记 · 学记")
-				pages.Study(c, a)
-			case r.Match("/todo"):
-				r.Title("流记 · 待办")
-				pages.Todo(c, a)
-			case r.Match("/settings"):
-				r.Title("流记 · 设置")
-				pages.Settings(c, a)
-			default:
-				ui.Text(c, "没有这个页面")
-			}
+		titleBar(c, a)
+		ui.Row(c).Grow(1).AlignItems(ui.Stretch).Children(func() {
+			Sidebar(c, a)
+			a.Router.View(c, func(r *ui.Route) {
+				switch {
+				case r.Match("/"):
+					r.Title("流记 · 首页")
+					pages.Home(c, a)
+				case r.Match("/study"):
+					r.Title("流记 · 学记")
+					pages.Study(c, a)
+				case r.Match("/notes"):
+					r.Title("流记 · 随笔")
+					pages.Notes(c, a)
+				case r.Match("/todo"):
+					r.Title("流记 · 待办")
+					pages.Todo(c, a)
+				case r.Match("/settings"):
+					r.Title("流记 · 设置")
+					pages.Settings(c, a)
+				default:
+					ui.Text(c, "没有这个页面")
+				}
+			})
 		})
 	})
 
 	// 弹层写在路由外面：切换页面时它们不会跟着消失。
 	pages.StudyEditor(c, a)
+	pages.NoteEditor(c, a)
 	ConfirmDialog(c, a)
 	OnboardingDialog(c, a)
 }

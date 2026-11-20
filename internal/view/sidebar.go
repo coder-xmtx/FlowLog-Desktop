@@ -24,6 +24,7 @@ func Sidebar(c *ui.Context, a *app.App) {
 		ui.Column(c).Gap(2).Children(func() {
 			navItem(c, a, "/", design.IconHome, "首页", 0)
 			navItem(c, a, "/study", design.IconBook, "学记", a.TodayEntryCount())
+			navItem(c, a, "/notes", design.IconNote, "随笔", a.TodayNoteCount())
 			navItem(c, a, "/todo", design.IconCheckCircle, "待办", a.OpenTodoCount())
 			navItem(c, a, "/settings", design.IconSettings, "设置", 0)
 		})
@@ -39,9 +40,9 @@ func brand(c *ui.Context) {
 	p := design.PaletteOf(c)
 	ui.Row(c).Gap(10).Padding(8, 10, 18).AlignItems(ui.Center).Children(func() {
 		if bmp := app.Icon(); bmp != nil {
-			ui.Image(c, bmp).Size(32, 32).Radius(10).Shrink(0)
+			ui.Image(c, bmp).Size(32, 32).Radius(0).Shrink(0)
 		} else {
-			ui.Box(c).Size(32, 32).Radius(10).Background(p.Primary).Shrink(0)
+			ui.Box(c).Size(32, 32).Radius(5).Background(p.Primary).Shrink(0)
 		}
 		ui.Column(c).Gap(1).Children(func() {
 			ui.Text(c, app.Name).FontSize(17).FontWeight(600).TextColor(p.OnSurface).SingleLine()

@@ -3,7 +3,6 @@ package pages
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"flowlog-desktop/internal/app"
 	design "flowlog-desktop/internal/design"
@@ -31,7 +30,8 @@ func Todo(c *ui.Context, a *app.App) {
 		// 输入行：内容 + 可选的截止日期 + 添加
 		ui.Row(c).Gap(10).Padding(2, 32, 12).Children(func() {
 			input := ui.TextInput(c.Key("todo-input"), &a.TodoDraft).
-				Placeholder("添加待办，回车即可添加").Label("新待办").Grow(1)
+				Placeholder("添加待办，回车即可添加").Label("新待办").
+				Height(design.ControlHeight).Grow(1)
 			if input.Submitted() {
 				a.AddTodo()
 			}
@@ -89,7 +89,7 @@ func Todo(c *ui.Context, a *app.App) {
 				// 只保留竖向滚动条：行内容永远不该横向溢出。
 				ScrollbarAxes(false, true)
 
-			ui.Text(c, "按截止日期排序，没有截止日期的排在最后。").
+			ui.Text(c, "按截止日期排序，没有截止日期的排在最后").
 				FontSize(design.FontTiny).TextColor(p.OnSurfaceVariant).Padding(10, 4, 0)
 		})
 	})
@@ -100,13 +100,13 @@ func todoEmptyState(c *ui.Context, a *app.App, total int) {
 	switch {
 	case total == 0:
 		design.EmptyState(c, design.IconInbox, "还没有待办",
-			"写下一件要做的事，可以顺便设定截止日期。", "", nil)
+			"写下一件要做的事，可以顺便设定截止日期", "", nil)
 	case a.TodoFilter == 1:
 		design.EmptyState(c, design.IconCheckCircle, "进行中的待办已清空",
-			"剩余的待办会显示在这里。", "查看已完成", func() { a.TodoFilter = 2 })
+			"剩余的待办会显示在这里", "查看已完成", func() { a.TodoFilter = 2 })
 	case a.TodoFilter == 2:
 		design.EmptyState(c, design.IconClock, "还没有已完成的待办",
-			"完成一项之后，它会出现在这里。", "查看全部", func() { a.TodoFilter = 0 })
+			"完成一项之后，它会出现在这里", "查看全部", func() { a.TodoFilter = 0 })
 	default:
 		design.EmptyState(c, design.IconInbox, "没有匹配的待办", "", "查看全部", func() { a.TodoFilter = 0 })
 	}
@@ -159,6 +159,16 @@ func todoRow(c *ui.Context, a *app.App, index int) {
 			design.Chip(c, todo.DueLabel(a.Today), tone)
 		}
 
+		copyBtn := design.IconButton(c, "todo-copy-"+id, "复制这条待办", design.IconCopy, func() {
+			if i := a.TodoIndex(id); i >= 0 {
+				c.WriteClipboard(a.Todos[i].Text)
+				a.Toast("已复制", a.Todos[i].Text)
+			}
+		})
+		if !hovered {
+			copyBtn.Invisible()
+		}
+
 		del := design.IconButton(c, "todo-del-"+id, "删除这条待办", design.IconTrash, func() {
 			a.DeleteTodo(id)
 		})
@@ -171,6 +181,9 @@ func todoRow(c *ui.Context, a *app.App, index int) {
 }
 
 // duePicker 是输入行里的「截止日期」按钮与它的弹层。
+//
+// 弹层左边是快捷选项，右边是日历：日历用 Browse 模式，翻月份只移动视图，
+// 只有点具体某一天才会选定日期并关掉弹层——否则翻月会被当成选日期。
 func duePicker(c *ui.Context, a *app.App) {
 	p := design.PaletteOf(c)
 	label := "截止日期"
@@ -184,20 +197,21 @@ func duePicker(c *ui.Context, a *app.App) {
 	}
 
 	ui.Popover(c, anchor, &a.DuePicker, func() {
-		ui.Column(c).Width(300).Gap(12).Padding(6).Children(func() {
-			ui.Text(c, "截止日期").FontSize(design.FontCaption).FontWeight(600).
-				TextColor(p.OnSurfaceVariant)
-
-			ui.Row(c).Gap(8).Children(func() {
-				design.TextButton(c, "due-today", "今天", func() { a.SetDue(0) })
-				design.TextButton(c, "due-tomorrow", "明天", func() { a.SetDue(1) })
-				design.TextButton(c, "due-weekend", "本周末", a.SetWeekend)
-				ui.Spacer(c)
-				design.TextButton(c, "due-clear", "清除", a.ClearDue)
+		ui.Row(c).Gap(18).Padding(10).Children(func() {
+			// 左边：快捷选项
+			ui.Column(c).Width(120).Gap(4).Children(func() {
+				ui.Text(c, "截止日期").FontSize(design.FontCaption).FontWeight(600).
+					TextColor(p.OnSurfaceVariant).Padding(0, 10, 6)
+				design.MenuButton(c, "due-today", "今天", func() { a.SetDue(0) })
+				design.MenuButton(c, "due-tomorrow", "明天", func() { a.SetDue(1) })
+				design.MenuButton(c, "due-weekend", "本周末", a.SetWeekend)
+				design.Divider(c)
+				design.MenuButton(c, "due-clear", "清除", a.ClearDue)
 			})
 
-			// 日历只驱动 CalView；在它上面选一天才算选定截止日期。
-			cal := ui.Calendar(c.Key("due-calendar"), &a.CalView).Label("截止日期")
+			// 右边：日历只驱动 CalView；Browse 让翻月不选日期。
+			cal := ui.Calendar(c.Key("due-calendar"), &a.CalView).
+				Label("截止日期").Browse()
 			if cal.Changed() {
 				a.TodoDue = a.CalView
 				a.DuePicker = false
@@ -206,6 +220,3 @@ func duePicker(c *ui.Context, a *app.App) {
 		})
 	})
 }
-
-// 让 time 包被用到（日期格式化在各处通过 model 完成）。
-var _ = time.Now
