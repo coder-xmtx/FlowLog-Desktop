@@ -74,7 +74,7 @@ func (app *App) home(c *ui.Context) {
 
 	ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 		ui.Column(c).Padding(32, 32, 10).Gap(3).Children(func() {
-			ui.Text(c, app.greeting(c.Now().Hour())+"。").
+			ui.Text(c, app.greeting(c.Now().Hour())).
 				FontSize(fsDisplay).Bold().SingleLine()
 			ui.Text(c, model.DisplayDateFull(app.today)+" · "+model.Weekday(date)).
 				FontSize(fsBody).TextColor(t.TextMuted).SingleLine()

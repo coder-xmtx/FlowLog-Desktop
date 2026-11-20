@@ -424,18 +424,18 @@ func (app *App) sidebar(c *ui.Context) {
 
 		page := app.router.Path()
 		if ui.Sidebar(c, &page, func() {
-			ui.SidebarItem(c, "/", iconHome, "首页")
+			ui.SidebarItem(c, "/", iconHome, "首页").Bold()
 			// 日记徽标只数今天的记录；累计量放在日历和日记页里看。
-			item := ui.SidebarItem(c, "/diary", iconBook, "日记")
+			item := ui.SidebarItem(c, "/diary", iconBook, "日记").Bold()
 			if n := app.todayEntryCount(); n > 0 {
 				item.Children(func() { ui.Badge(c, strconv.Itoa(n)) })
 			}
-			todo := ui.SidebarItem(c, "/todo", iconCheckCircle, "待办")
+			todo := ui.SidebarItem(c, "/todo", iconCheckCircle, "待办").Bold()
 			if open := app.openTodoCount(); open > 0 {
 				todo.Children(func() { ui.Badge(c, strconv.Itoa(open)) })
 			}
-			ui.SidebarItem(c, "/settings", iconSettings, "设置")
-		}).Grow(1).Label("主导航").Changed() {
+			ui.SidebarItem(c, "/settings", iconSettings, "设置").Bold()
+		}).Gap(10).Grow(1).Label("主导航").Changed() {
 			app.router.Push(page)
 		}
 
