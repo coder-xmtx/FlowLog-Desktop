@@ -11,13 +11,13 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Settings 是设置页：外观、账户与数据；关于本应用的信息在最后。
+// Settings 是设置页：外观、账户与数据；关于本应用的信息在最后
 func Settings(c *ui.Context, a *app.App) {
 	p := design.PaletteOf(c)
 	days, entries, points, todos := a.Summary()
 
 	ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-		design.PageHeader(c, "设置", "外观、账户与数据；关于本应用的信息在最后。", nil)
+		design.PageHeader(c, "设置", "外观、账户与数据；关于本应用的信息在最后", nil)
 
 		ui.Scroll(c).Grow(1).Padding(6, 32, 28).Gap(16).Children(func() {
 			settingsAccount(c, a)
@@ -36,7 +36,7 @@ func settingsAccount(c *ui.Context, a *app.App) {
 	design.SectionCard(c, "账户", "", func() {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 			in := ui.TextInput(c.Key("settings-name"), &a.Settings.UserName).
-				Label("称呼").MaxLength(24).Placeholder("你的称呼").Grow(1)
+				Label("称呼").MaxLength(24).Placeholder("你的称呼").Height(design.ControlHeight).Grow(1)
 			if in.Submitted() {
 				a.SaveSettings()
 				a.Toast("已保存", "称呼已更新")
@@ -46,7 +46,7 @@ func settingsAccount(c *ui.Context, a *app.App) {
 				a.Toast("已保存", "称呼已更新")
 			})
 		})
-		ui.Text(c, "首页的问候会用到这个称呼，随时可以修改。").
+		ui.Text(c, "首页的问候会用到这个称呼，随时可以修改").
 			FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant)
 	})
 }
@@ -55,7 +55,7 @@ func settingsAccount(c *ui.Context, a *app.App) {
 func settingsAppearance(c *ui.Context, a *app.App) {
 	p := design.PaletteOf(c)
 	design.SectionCard(c, "外观", "", func() {
-		// Segmented 绑定下标；OnChange 里读到的 choice 已经是新值。
+		// 分段控件绑定下标；Changed 报告新选择，此时 choice 已是新值。
 		choice := 0
 		switch a.Settings.Theme {
 		case model.ThemeLight:
@@ -63,19 +63,22 @@ func settingsAppearance(c *ui.Context, a *app.App) {
 		case model.ThemeSystem:
 			choice = 2
 		}
-		ui.Segmented(c.Key("settings-theme"), &choice, "深色", "浅色", "跟随系统").
-			Label("外观").FillEqually().Width(400).
-			OnChange(func() {
-				theme := model.ThemeDark
-				switch choice {
-				case 1:
-					theme = model.ThemeLight
-				case 2:
-					theme = model.ThemeSystem
-				}
-				a.SetTheme(theme)
-			})
-		ui.Text(c, "默认深色；选择「跟随系统」后，应用会随系统的深浅色切换。").
+		seg := design.IconSegmented(c, "settings-theme", &choice, 400,
+			design.SegmentOption{Icon: design.IconMoon, Label: "深色"},
+			design.SegmentOption{Icon: design.IconSun, Label: "浅色"},
+			design.SegmentOption{Icon: design.IconMonitor, Label: "跟随系统"},
+		)
+		if seg.Changed() {
+			theme := model.ThemeDark
+			switch choice {
+			case 1:
+				theme = model.ThemeLight
+			case 2:
+				theme = model.ThemeSystem
+			}
+			a.SetTheme(theme)
+		}
+		ui.Text(c, "默认深色；选择「跟随系统」后，应用会随系统的深浅色切换").
 			FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant)
 	})
 }
@@ -113,7 +116,7 @@ func settingsData(c *ui.Context, a *app.App, days, entries, points, todos int) {
 			design.OutlinedButton(c, "restore-backup", "从备份恢复", design.IconUpload, a.ChooseBackup)
 		})
 
-		ui.Text(c, "备份是一个 JSON 文件，包含全部记录、待办与设置，可以复制到别的机器上恢复。").
+		ui.Text(c, "备份是一个 JSON 文件，包含全部记录、待办与设置，可以复制到别的机器上恢复").
 			FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant).LineHeight(1.6)
 
 		autoBackupRow(c, a)
@@ -164,7 +167,7 @@ func settingsShortcuts(c *ui.Context) {
 	p := design.PaletteOf(c)
 	keys := []struct{ Key, What string }{
 		{app.CmdName + " + N", "写一条今天的记录"},
-		{app.CmdName + " + 1…4", "首页 / 学记 / 待办 / 设置"},
+		{app.CmdName + " + 1…5", "首页 / 学记 / 随笔 / 待办 / 设置"},
 		{app.CmdName + " + F", "在学记里搜索"},
 		{app.CmdName + " + Enter", "保存正在写的记录"},
 		{"Esc", "关闭弹窗"},
@@ -234,16 +237,16 @@ func updateRow(c *ui.Context, a *app.App) {
 			ui.Text(c, "版本更新").FontSize(design.FontBody).FontWeight(600).TextColor(p.OnSurface)
 			switch {
 			case !app.UpdateSupported():
-				ui.Text(c, "开发版与包管理器安装的版本不支持自动更新。").
+				ui.Text(c, "开发版与包管理器安装的版本不支持自动更新").
 					FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant)
 			case a.Update.Installing:
 				ui.Textf(c, "正在下载并安装，%d%%", int(a.Update.Progress*100)).
 					FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant)
 			case a.Update.Version != "":
-				ui.Text(c, "发现新版本 v"+a.Update.Version+"，安装后会自动重启。").
+				ui.Text(c, "发现新版本 v"+a.Update.Version+"，安装后会自动重启").
 					FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant)
 			default:
-				ui.Text(c, "从 "+app.UpdateHost+" 获取更新。").
+				ui.Text(c, "从 "+app.UpdateHost+" 获取更新").
 					FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant)
 			}
 		})
@@ -252,7 +255,8 @@ func updateRow(c *ui.Context, a *app.App) {
 		case !app.UpdateSupported():
 			design.OutlinedButton(c, "check-update", "检查更新", nil, nil).Disabled(true)
 		case a.Update.Installing:
-			ui.Progress(c, a.Update.Progress).Width(120)
+			// 检查按钮变成「更新中」，进度条只留下面那一条。
+			design.BusyButton(c, "更新中")
 		case a.Update.Version != "":
 			design.FilledButton(c, "install-update", "安装并重启", nil, a.InstallUpdate)
 		default:

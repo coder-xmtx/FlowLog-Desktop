@@ -35,7 +35,8 @@ const FileName = "flowlog.db"
 //	0  新库，直接按当前 schema 建表
 //	1  v0.3：todos 属于某一天（todos.date），由外键级联
 //	2  v0.4：todos 独立，date 改为 created，新增 due
-const SchemaVersion = 2
+//	3  v0.6：新增 notes 随笔表
+const SchemaVersion = 3
 
 // createStatements 建表与索引，用 IF NOT EXISTS，可以重复执行。
 var createStatements = []string{
@@ -69,6 +70,13 @@ var createStatements = []string{
 		due     TEXT NOT NULL DEFAULT '',
 		at      TEXT NOT NULL DEFAULT ''
 	)`,
+	`CREATE TABLE IF NOT EXISTS notes (
+		id         TEXT PRIMARY KEY,
+		date       TEXT NOT NULL,
+		text       TEXT NOT NULL,
+		at         TEXT NOT NULL DEFAULT '',
+		created_at INTEGER NOT NULL DEFAULT 0
+	)`,
 	`CREATE TABLE IF NOT EXISTS settings (
 		key   TEXT PRIMARY KEY,
 		value TEXT NOT NULL
@@ -76,6 +84,19 @@ var createStatements = []string{
 	`CREATE INDEX IF NOT EXISTS entries_by_date ON entries(date, position)`,
 	`CREATE INDEX IF NOT EXISTS points_by_entry ON points(entry_id, position)`,
 	`CREATE INDEX IF NOT EXISTS todos_by_done ON todos(done, due)`,
+	`CREATE INDEX IF NOT EXISTS notes_by_date ON notes(date, created_at)`,
+}
+
+// notesStatements 是 v3 新增的随笔表，用于从旧版本升级。
+var notesStatements = []string{
+	`CREATE TABLE IF NOT EXISTS notes (
+		id         TEXT PRIMARY KEY,
+		date       TEXT NOT NULL,
+		text       TEXT NOT NULL,
+		at         TEXT NOT NULL DEFAULT '',
+		created_at INTEGER NOT NULL DEFAULT 0
+	)`,
+	`CREATE INDEX IF NOT EXISTS notes_by_date ON notes(date, created_at)`,
 }
 
 // Store 是一个打开的数据库。
@@ -118,23 +139,31 @@ func (s *Store) migrate() error {
 		for _, sql := range createStatements {
 			stmts = append(stmts, sqlite.Statement{SQL: sql})
 		}
-	} else if version < 2 {
-		// v1 → v2：把 todos 从「属于某一天」改成「独立 + 截止日期」。
-		stmts = append(stmts,
-			sqlite.Statement{SQL: `ALTER TABLE todos RENAME TO todos_v1`},
-			sqlite.Statement{SQL: `CREATE TABLE todos (
-				id      TEXT PRIMARY KEY,
-				text    TEXT NOT NULL,
-				done    INTEGER NOT NULL DEFAULT 0,
-				created TEXT NOT NULL DEFAULT '',
-				due     TEXT NOT NULL DEFAULT '',
-				at      TEXT NOT NULL DEFAULT ''
-			)`},
-			sqlite.Statement{SQL: `INSERT INTO todos (id, text, done, created, due, at)
-				SELECT id, text, done, date, '', at FROM todos_v1`},
-			sqlite.Statement{SQL: `DROP TABLE todos_v1`},
-			sqlite.Statement{SQL: `CREATE INDEX IF NOT EXISTS todos_by_done ON todos(done, due)`},
-		)
+	} else {
+		if version < 2 {
+			// v1 → v2：把 todos 从「属于某一天」改成「独立 + 截止日期」。
+			stmts = append(stmts,
+				sqlite.Statement{SQL: `ALTER TABLE todos RENAME TO todos_v1`},
+				sqlite.Statement{SQL: `CREATE TABLE todos (
+					id      TEXT PRIMARY KEY,
+					text    TEXT NOT NULL,
+					done    INTEGER NOT NULL DEFAULT 0,
+					created TEXT NOT NULL DEFAULT '',
+					due     TEXT NOT NULL DEFAULT '',
+					at      TEXT NOT NULL DEFAULT ''
+				)`},
+				sqlite.Statement{SQL: `INSERT INTO todos (id, text, done, created, due, at)
+					SELECT id, text, done, date, '', at FROM todos_v1`},
+				sqlite.Statement{SQL: `DROP TABLE todos_v1`},
+				sqlite.Statement{SQL: `CREATE INDEX IF NOT EXISTS todos_by_done ON todos(done, due)`},
+			)
+		}
+		if version < 3 {
+			// v2 → v3：新增随笔表。
+			for _, sql := range notesStatements {
+				stmts = append(stmts, sqlite.Statement{SQL: sql})
+			}
+		}
 	}
 	stmts = append(stmts, sqlite.Statement{SQL: fmt.Sprintf("PRAGMA user_version = %d", SchemaVersion)})
 
@@ -395,6 +424,7 @@ func (s *Store) DeleteAll() error {
 	stmts := []sqlite.Statement{
 		{SQL: `DELETE FROM days`},
 		{SQL: `DELETE FROM todos`},
+		{SQL: `DELETE FROM notes`},
 	}
 	if _, err := s.db.Transaction(context.Background(), stmts); err != nil {
 		return fmt.Errorf("清空数据: %w", err)

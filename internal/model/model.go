@@ -108,6 +108,20 @@ func (t Todo) DueLabel(today string) string {
 	return ""
 }
 
+// Note 是一条随笔：日期加正文，和学记里按科目组织的记录分开。
+//
+// 一条随笔就是一段文字，可以一天写多条；它不参与学记的统计。
+type Note struct {
+	// ID 是随机十六进制主键。
+	ID string `json:"id"`
+	// Date 是这一条所属的日期，格式 2006-01-02。
+	Date string `json:"date"`
+	// Text 是正文。
+	Text string `json:"text"`
+	// At 是写入时刻的 15:04。
+	At string `json:"at,omitempty"`
+}
+
 // Settings 是应用级设置。
 type Settings struct {
 	// Theme 是 "dark"、"light" 或 "system"。

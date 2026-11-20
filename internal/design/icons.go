@@ -73,6 +73,16 @@ var (
 
 	IconAlert = ui.MustParseSVG([]byte(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 2.6 17.2a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4.5"/><path d="M12 17h.01"/></svg>`))
 
+	IconMinus = ui.MustParseSVG([]byte(`<svg width="1em" height="1em" viewBox="0 0 24 24"><path d="M0 0h24v24H0z" fill="none" /><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M5 12h14" /></svg>`))
+
+	IconSquare = ui.MustParseSVG([]byte(`<svg width="1em" height="1em" viewBox="0 0 24 24"><path d="M0 0h24v24H0z" fill="none" /><rect x="5" y="5" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2" /></svg>`))
+
+	IconRestore = ui.MustParseSVG([]byte(`<svg width="1em" height="1em" viewBox="0 0 24 24"><path d="M0 0h24v24H0z" fill="none" /><g fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="2"><path d="M8 8V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2" /><rect x="4" y="8" width="12" height="12" rx="2" /></g></svg>`))
+
+	IconNote = ui.MustParseSVG([]byte(`<svg width="1em" height="1em" viewBox="0 0 24 24"><path d="M0 0h24v24H0z" fill="none" /><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M5 4h11l3 3v13H5z" /><path d="M9 9h6m-6 4h6m-6 4h3" /></g></svg>`))
+
+	IconMonitor = ui.MustParseSVG([]byte(`<svg width="1em" height="1em" viewBox="0 0 24 24"><path d="M0 0h24v24H0z" fill="none" /><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><rect x="4" y="4" width="16" height="12" rx="1" /><path d="M7 20h10m-5-4v4" /></g></svg>`))
+
 	IconLeft = ui.MustParseSVG([]byte(`
 	<svg width="1em" height="1em" viewBox="0 0 24 24">
 		<path d="M0 0h24v24H0z" fill="none" />

@@ -31,6 +31,13 @@ func (a *App) Reload() {
 	}
 	a.Todos = todos
 
+	notes, err := a.Store.Notes()
+	if err != nil {
+		a.ToastError("读取随笔失败", err.Error())
+		return
+	}
+	a.Notes = notes
+
 	// 设置也可能被备份覆盖（外观、称呼、自动备份）。
 	if st, err := a.Store.Settings(); err == nil {
 		a.Settings = st
@@ -39,6 +46,7 @@ func (a *App) Reload() {
 	// 列表状态复位：数据换了一批，旧的滚动位置与选中项已无意义。
 	a.StudyList = ui.ListState{}
 	a.TodoList = ui.ListState{}
+	a.NoteList = ui.ListState{}
 	a.Filtered = nil
 	a.Visible = nil
 }

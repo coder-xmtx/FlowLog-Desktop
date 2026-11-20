@@ -39,10 +39,10 @@ func Study(c *ui.Context, a *app.App) {
 		if len(a.Filtered) == 0 {
 			if a.HasFilter() {
 				design.EmptyState(c, design.IconSearch, "没有匹配的记录",
-					"换个关键词，或者切换到别的科目试试。", "清空筛选", a.ClearFilters)
+					"换个关键词，或者切换到别的科目试试", "清空筛选", a.ClearFilters)
 			} else {
 				design.EmptyState(c, design.IconBook, "还没有记录",
-					"写下科目、章节，以及今天弄懂的要点。", "写今天的学记", func() {
+					"写下科目、章节，以及今天弄懂的要点", "写今天的学记", func() {
 						a.OpenEditor(a.Today, "")
 					})
 			}
@@ -97,7 +97,7 @@ func subjectSelect(c *ui.Context, a *app.App) {
 		choice = allSubjects
 	}
 	ui.Select(c.Key("study-subject"), &choice, options).
-		Label("按科目筛选").Width(168).Tooltip("只看某个科目").
+		Label("按科目筛选").Width(168).Height(design.ControlHeight).Tooltip("只看某个科目").
 		OnChange(func() {
 			if choice == allSubjects {
 				a.SubjectFilter = ""
@@ -110,7 +110,8 @@ func subjectSelect(c *ui.Context, a *app.App) {
 // searchField 是页头右侧的搜索框，⌘F 把焦点送进来。
 func searchField(c *ui.Context, a *app.App) {
 	f := ui.SearchField(c.Key("study-search"), &a.Query).
-		Placeholder("搜索科目、章节或要点").Label("搜索学记").Width(210)
+		Placeholder("搜索科目、章节或要点").Label("搜索学记").Width(210).
+		Height(design.ControlHeight)
 	if a.FocusSearch {
 		f.Focus()
 		a.FocusSearch = false
@@ -167,7 +168,7 @@ func dayCard(c *ui.Context, a *app.App, di int) {
 		})
 
 		if len(day.Entries) == 0 {
-			ui.Text(c, "这一天还没有记录。").FontSize(design.FontBody).
+			ui.Text(c, "这一天还没有记录").FontSize(design.FontBody).
 				TextColor(p.OnSurfaceVariant).Padding(2, 0)
 			return
 		}

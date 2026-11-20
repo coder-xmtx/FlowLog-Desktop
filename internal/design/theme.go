@@ -45,6 +45,12 @@ const (
 	RadiusFull float32 = 999
 )
 
+// ControlHeight 是工具条里输入框、下拉框与按钮的统一高度。
+//
+// MyGo 的输入框默认按内容称高（约 33 DIP），比 40 的按钮矮一截，
+// 放在同一行里会参差不齐；这里统一成 40。
+const ControlHeight float32 = 40
+
 // Theme 把颜色板组装成 MyGo 的主题。
 //
 // MyGo 每帧都会用「跟随系统 + 桌面偏好」的默认主题重建上下文，

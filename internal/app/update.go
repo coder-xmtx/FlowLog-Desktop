@@ -110,7 +110,7 @@ func UpdateErrText(err error) string {
 	case errors.Is(err, mygo.ErrUpdatesDisabled):
 		return "当前构建不支持自动更新"
 	case errors.Is(err, context.DeadlineExceeded):
-		return "连接更新服务器超时"
+		return "连接 Github 更新服务器超时，请检查网络环境，或需要使用梯子"
 	}
 	return fmt.Sprintf("检查更新失败：%v", err)
 }

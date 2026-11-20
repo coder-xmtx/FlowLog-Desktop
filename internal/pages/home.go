@@ -7,7 +7,6 @@ package pages
 import (
 	"strconv"
 	"strings"
-	"time"
 
 	"flowlog-desktop/internal/app"
 	design "flowlog-desktop/internal/design"
@@ -82,7 +81,7 @@ func Home(c *ui.Context, a *app.App) {
 				FontSize(design.FontBody).TextColor(p.OnSurfaceVariant).SingleLine()
 		})
 
-		ui.Scroll(c).Grow(1).Padding(6, 32, 28).Gap(18).Children(func() {
+		ui.Scroll(c).Scrollbars(false).Grow(1).Padding(6, 32, 28).Gap(18).Children(func() {
 			hero(c, a, QuoteOf(a.Today))
 
 			ui.Row(c).Gap(14).Children(func() {
@@ -99,8 +98,6 @@ func Home(c *ui.Context, a *app.App) {
 					dueCard(c, a).FillHeight()
 				})
 			})
-
-			recentStrip(c, a)
 		})
 	})
 }
@@ -197,7 +194,7 @@ func todayLearning(c *ui.Context, a *app.App, today model.Day) ui.Element {
 	return design.SectionCard(c, "今天学了什么", "", func() {
 		if len(today.Entries) == 0 {
 			design.EmptyState(c, design.IconBook, "今天还没有记录",
-				"记录科目、章节，以及今天弄懂的要点。",
+				"记录科目、章节，以及今天弄懂的要点",
 				"写今天的学记", func() { a.OpenEditor(a.Today, "") })
 			return
 		}
@@ -247,7 +244,7 @@ func dueCard(c *ui.Context, a *app.App) ui.Element {
 
 	return design.SectionCard(c, "待办提醒", "", func() {
 		if len(due) == 0 {
-			ui.Text(c, "近两天没有到期的待办。").FontSize(design.FontBody).
+			ui.Text(c, "近两天没有到期的待办").FontSize(design.FontBody).
 				TextColor(p.OnSurfaceVariant)
 			ui.Row(c).Children(func() {
 				design.TonalButton(c, "goto-todo", "查看待办", nil, func() { a.Router.Push("/todo") })
@@ -308,57 +305,6 @@ func dueRow(c *ui.Context, a *app.App, todo model.Todo) {
 		design.Chip(c, todo.DueLabel(a.Today), tone)
 	})
 	row.Background(design.HoverLayer(row, "hover", p.OnSurface, hovered))
-}
-
-// recentStrip 是首页底部的最近 7 天。
-func recentStrip(c *ui.Context, a *app.App) {
-	p := design.PaletteOf(c)
-	ui.Column(c).Gap(12).Children(func() {
-		ui.Text(c, "最近 7 天").FontSize(design.FontLead).FontWeight(600).
-			TextColor(p.OnSurface)
-		ui.Row(c).Gap(8).Children(func() {
-			for i := 6; i >= 0; i-- {
-				date := model.MustDate(a.Today).AddDate(0, 0, -i)
-				dayCell(c, a, date, i == 0)
-			}
-		})
-	})
-}
-
-// dayCell 是最近 7 天里的一格：有记录的日子用主色容器填底，今天描边。
-func dayCell(c *ui.Context, a *app.App, date time.Time, isToday bool) {
-	p := design.PaletteOf(c)
-	key := date.Format(model.DateLayout)
-	has := a.HasEntries(key)
-
-	fill, fg := p.SurfaceContainerHigh, p.OnSurfaceVariant
-	if has {
-		fill, fg = p.PrimaryContainer, p.OnPrimaryContainer
-	}
-
-	cell := ui.Column(c.Key("day-" + key)).Width(46).Gap(6).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, model.WeekdayShort(date)).FontSize(design.FontTiny).
-			TextColor(p.OnSurfaceVariant)
-
-		box := ui.Box(c).Size(36, 36).Radius(18).Background(fill).Center()
-		if isToday {
-			box.Border(1.5, p.Primary)
-		}
-		box.Children(func() {
-			ui.Text(c, strconv.Itoa(date.Day())).FontSize(design.FontSmall).
-				FontWeight(600).TextColor(fg)
-		})
-	})
-	cell.Tooltip(key + " · " + daySummary(a, key))
-}
-
-// daySummary 用一句话概括某天，用于提示气泡。
-func daySummary(a *app.App, date string) string {
-	i := a.DayIndex(date)
-	if i < 0 || !a.Days[i].HasEntries() {
-		return "没有记录"
-	}
-	return plural(len(a.Days[i].Entries), "条学习记录")
 }
 
 // cardSurface 返回卡片的底色：浅色是纯白，深色是高一层容器。

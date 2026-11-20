@@ -14,10 +14,10 @@ import (
 // 关于这一份应用的自述。想换成自己的，改这里就够了。
 const (
 	// Version 与项目根目录 mygo.json 的 version 保持一致。
-	Version    = "0.5.1"
+	Version    = "0.6.0"
 	Name       = "流记"
 	NameEn     = "FlowLog"
-	Tagline    = "把每天的学习，写成一条清晰的流。"
+	Tagline    = "把每天的学习和思考，写成一条清晰的流"
 	Author     = "Mixsu"
 	RepoURL    = "https://github.com/coder-xmtx/FlowLog-Desktop"
 	License    = "MIT"
