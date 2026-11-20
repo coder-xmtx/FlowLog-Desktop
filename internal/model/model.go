@@ -1,7 +1,7 @@
 // Package model 定义流记的数据结构。
 //
 // 两类数据互相独立：
-//   - 日记：Day 里的一条条 Entry（科目 → 章 / 节 → 要点）。
+//   - 学记：Day 里的一条条 Entry（科目 → 章 / 节 → 要点）。
 //   - 待办：Todo，自带创建日期与可选的截止日期，不属于任何一天。
 package model
 
@@ -16,7 +16,7 @@ import (
 // DateLayout 是日期在主键、文件名与界面里的统一格式。
 const DateLayout = "2006-01-02"
 
-// Day 是一天的日记，只包含学习记录。
+// Day 是一天的学记，只包含学习记录。
 type Day struct {
 	Date    string  `json:"date"`
 	Entries []Entry `json:"entries"`
@@ -43,7 +43,7 @@ type Point struct {
 	Done bool `json:"done,omitempty"`
 }
 
-// Todo 是一条待办，独立于日记。
+// Todo 是一条待办，独立于学记。
 type Todo struct {
 	ID   string `json:"id"`
 	Text string `json:"text"`
@@ -372,6 +372,17 @@ func OpenTodos(todos []Todo) []Todo {
 		}
 	}
 	return out
+}
+
+// QueryHit 报告 text 里有没有 query（大小写不敏感）。
+//
+// 用于「这条记录要不要显示」的判断；高亮切分在界面层做。
+func QueryHit(text, query string) bool {
+	q := strings.TrimSpace(query)
+	if q == "" {
+		return false
+	}
+	return strings.Contains(strings.ToLower(text), strings.ToLower(q))
 }
 
 // DueSoon 返回需要今天关注的待办：已过期、今天到期、明天到期，只看未完成的。

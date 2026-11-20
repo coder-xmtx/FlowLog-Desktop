@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"flowlog-desktop/internal/app"
 	"flowlog-desktop/internal/store"
 	"flowlog-desktop/internal/view"
 
@@ -31,7 +32,7 @@ func main() {
 	var db *store.Store
 
 	mygo.App.WhenReady(func() {
-		// 1. 打开数据库（必要时建表或升级），读出全部日记、待办与设置。
+		// 1. 打开数据库（必要时建表或升级），读出全部数据与设置。
 		dir, err := dataDir()
 		if err != nil {
 			log.Fatal(err)
@@ -42,11 +43,11 @@ func main() {
 		}
 		db = s
 
-		app, err := view.NewApp(s)
+		a, err := app.New(s)
 		if err != nil {
 			log.Fatal(err)
 		}
-		app.SetReleaseNotes(changelog)
+		a.SetReleaseNotes(changelog)
 
 		// 2. 开窗口。原生渲染：没有 webview，也没有前端构建。
 		win := mygo.NewWindow(mygo.WindowOptions{
@@ -57,10 +58,10 @@ func main() {
 			MinHeight: 560,
 			// 记住窗口位置与大小（由 MyGo 存在用户数据目录里）。
 			StateKey: "main",
-			Content:  ui.View(app.View),
+			Content:  ui.View(func(c *ui.Context) { view.Root(c, a) }),
 		})
-		app.SetWindow(win)
-		app.Start()
+		a.SetWindow(win)
+		a.Start()
 
 		setMenu()
 	})

@@ -1,23 +1,23 @@
 package view
 
 import (
-	"fmt"
 	"image/png"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"flowlog-desktop/internal/app"
 	"flowlog-desktop/internal/model"
 	"flowlog-desktop/internal/store"
 
 	"github.com/egoist/mygo/ui"
 )
 
-// sampleApp 造一个带几天样本数据的 App，所有测试共用。
+// sampleApp 造一个带几天样本数据的 App，测试与预览共用。
 //
 // 用 t.TempDir() 做数据目录：测试之间互不影响，也绝不碰用户真正的 data/。
-func sampleApp(t *testing.T) *App {
+func sampleApp(t *testing.T) *app.App {
 	t.Helper()
 	s, err := store.Open(filepath.Join(t.TempDir(), store.FileName))
 	if err != nil {
@@ -41,21 +41,21 @@ func sampleApp(t *testing.T) *App {
 		t.Fatal(err)
 	}
 
-	app, err := NewApp(s)
+	a, err := app.New(s)
 	if err != nil {
-		t.Fatalf("NewApp: %v", err)
+		t.Fatalf("app.New: %v", err)
 	}
-	// 预览不联网：背景图留空，走纸色兜底。
-	app.bg = nil
-	// 设置页会展示当前版本的更新说明，这里给一段示例。
-	app.SetReleaseNotes("# 更新日志\n\n## " + appVersion + "\n\n" +
-		"- 日记与待办解耦，待办支持截止日期\n" +
-		"- 侧边栏新增月历\n" +
-		"- 默认深色主题，并提供跟随系统\n")
-	return app
+	// 预览不联网：背景图留空，走品牌渐变兜底。
+	a.BG = nil
+	// 设置页会展示当前版本的更新说明。
+	a.SetReleaseNotes("# 更新日志\n\n## " + app.Version + "\n\n" +
+		"- 全新 Material Design 3 界面\n" +
+		"- 学记支持科目筛选与搜索高亮\n" +
+		"- 自动备份\n")
+	return a
 }
 
-// sampleDays 是几天的示例日记。
+// sampleDays 是几天的示例记录。
 func sampleDays() []model.Day {
 	today := model.MustDate(model.Today())
 	return []model.Day{
@@ -138,100 +138,71 @@ func TestPreview(t *testing.T) {
 		t.Fatalf("建目录: %v", err)
 	}
 
-	app := sampleApp(t)
+	a := sampleApp(t)
 
 	// 默认深色
 	for _, p := range []struct{ path, name string }{
 		{"/", "home"},
-		{"/diary", "diary"},
+		{"/study", "study"},
 		{"/todo", "todo"},
 		{"/settings", "settings"},
 	} {
-		app.router.Push(p.path)
-		render(t, dir, p.name, app, 1200, 820)
+		a.Router.Push(p.path)
+		render(t, dir, p.name, a, 1200, 820)
 	}
 
 	// 浅色
-	app.settings.Theme = model.ThemeLight
-	app.router.Push("/")
-	render(t, dir, "home-light", app, 1200, 820)
-	app.router.Push("/diary")
-	render(t, dir, "diary-light", app, 1200, 820)
+	a.Settings.Theme = model.ThemeLight
+	a.Router.Push("/")
+	render(t, dir, "home-light", a, 1200, 820)
+	a.Router.Push("/study")
+	render(t, dir, "study-light", a, 1200, 820)
+	a.Settings.Theme = model.ThemeDark
 
-	// 浅色下的搜索高亮
-	app.query = "虚拟存储器"
-	render(t, dir, "diary-search-light", app, 1200, 820)
-	app.query = ""
-
-	app.router.Push("/settings")
-	render(t, dir, "settings-light", app, 1200, 820)
-	app.settings.Theme = model.ThemeDark
-
-	// 搜索命中高亮（深色）
-	app.router.Push("/diary")
-	app.query = "虚拟存储器"
-	render(t, dir, "diary-search", app, 1200, 820)
-	app.query = ""
+	// 搜索命中高亮
+	a.Router.Push("/study")
+	a.Query = "虚拟存储器"
+	render(t, dir, "study-search", a, 1200, 820)
+	a.Query = ""
 
 	// 按科目筛选
-	app.subjectFilter = "计算机组成原理"
-	render(t, dir, "diary-filter", app, 1200, 820)
-	app.subjectFilter = ""
+	a.SubjectFilter = "数据结构"
+	render(t, dir, "study-filter", a, 1200, 820)
+	a.SubjectFilter = ""
 
-	// 弹窗：写日记
-	app.router.Push("/diary")
-	app.openEditor(app.today, "")
-	render(t, dir, "editor", app, 1200, 820)
+	// 写学记弹窗
+	a.OpenEditor(model.Today(), "e-today-1")
+	render(t, dir, "editor", a, 1200, 820)
+	a.Editor.Open = false
 
-	// 弹窗：要点很多时输入框跟着长高，但没有滚动条
-	app.ed.Open = false
-	app.openEditor(app.today, "")
-	for i := 0; i < 18; i++ {
-		app.ed.Points += fmt.Sprintf("第 %d 条要点，用来测试输入框长高以后的样子\n", i+1)
-	}
-	render(t, dir, "editor-many", app, 1200, 820)
-	app.ed.Open = false
+	// 空弹窗 + 校验失败
+	a.OpenEditor(a.Today, "")
+	a.SaveEditor()
+	render(t, dir, "editor-error", a, 1200, 820)
+	a.Editor.Open = false
 
-	// 弹窗：编辑已有的一条（校验错误常驻底部）
-	app.ed.Open = false
-	app.openEditor(model.Today(), "e-today-1")
-	render(t, dir, "editor-edit", app, 1200, 820)
-	app.ed.Open = false
-
-	// 弹窗：校验失败
-	app.openEditor(app.today, "")
-	app.saveEditor()
-	render(t, dir, "editor-error", app, 1200, 820)
-	app.ed.Open = false
-
-	// 首次启动的用户名引导
-	app.settings.UserName, app.settings.Onboarded = "", false
-	app.onboarding = onboardState{Open: true}
-	render(t, dir, "onboarding", app, 1200, 820)
-	app.onboarding.Open = false
-	app.settings.UserName, app.settings.Onboarded = "小明", true
-
-	// 待办页的截止日期弹层
-	app.router.Push("/todo")
-	app.duePicker = true
-	render(t, dir, "due-picker", app, 1200, 820)
-	app.duePicker = false
+	// 首次启动引导
+	a.Settings.UserName, a.Settings.Onboarded = "", false
+	a.Onboarding = app.OnboardingState{Open: true}
+	render(t, dir, "onboarding", a, 1200, 820)
+	a.Onboarding.Open = false
+	a.Settings.UserName, a.Settings.Onboarded = "小明", true
 
 	// 窄窗口
-	app.router.Push("/diary")
-	render(t, dir, "diary-narrow", app, 900, 620)
+	a.Router.Push("/study")
+	render(t, dir, "study-narrow", a, 900, 620)
 
-	// 高窗口：把设置页整页展开，检查关于与更新那一节
-	app.router.Push("/settings")
-	render(t, dir, "settings-tall", app, 1100, 1400)
+	// 高窗口：整页设置
+	a.Router.Push("/settings")
+	render(t, dir, "settings-tall", a, 1100, 1500)
 
 	t.Logf("预览图写到 %s", dir)
 }
 
 // render 走几帧再截图：列表要先量出行的真实高度，后面的行才摆得对位置。
-func render(t *testing.T, dir, name string, app *App, w, h int) {
+func render(t *testing.T, dir, name string, a *app.App, w, h int) {
 	t.Helper()
-	tt := ui.NewTester(app.View, w, h)
+	tt := ui.NewTester(func(c *ui.Context) { Root(c, a) }, w, h)
 	for i := 0; i < 3; i++ {
 		tt.Advance(16 * time.Millisecond)
 	}

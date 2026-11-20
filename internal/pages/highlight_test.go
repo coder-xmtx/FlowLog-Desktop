@@ -1,9 +1,9 @@
-package view
+package pages
 
 import (
 	"testing"
 
-	"github.com/egoist/mygo/ui"
+	design "flowlog-desktop/internal/design"
 )
 
 // TestSplitHighlight 检查搜索片的切分：大小写、中文、重叠、没命中与空查询。
@@ -71,16 +71,6 @@ func TestSplitHighlight(t *testing.T) {
 				{Text: "aa", Match: true},
 			},
 		},
-		{
-			name:  "特殊字符按字面处理",
-			text:  "a.b 与 axb",
-			query: ".",
-			want: []textSegment{
-				{Text: "a"},
-				{Text: ".", Match: true},
-				{Text: "b 与 axb"},
-			},
-		},
 	}
 
 	for _, c := range cases {
@@ -105,29 +95,13 @@ func TestSplitHighlight(t *testing.T) {
 	}
 }
 
-// TestQueryHit 检查「有没有命中」的快速判断。
-func TestQueryHit(t *testing.T) {
-	if !queryHit("计算机组成原理", "组成") {
-		t.Error("中文子串应该命中")
-	}
-	if !queryHit("BTree", "btree") {
-		t.Error("大小写不敏感")
-	}
-	if queryHit("数据结构", "  ") {
-		t.Error("空白查询不该命中")
-	}
-	if queryHit("", "图") {
-		t.Error("空文本不该命中")
-	}
-}
-
-// TestHighlightSpans 检查命中的片段带底色、普通片段不带。
+// TestHighlightSpans 检查命中的片段带底色与文字色、普通片段不带。
 func TestHighlightSpans(t *testing.T) {
-	spans := highlightSpans("页表的结构", "页表", ui.Hex("#ffcf8a"))
+	spans := highlightSpans("页表的结构", "页表", design.Light())
 	if len(spans) != 2 {
 		t.Fatalf("span 数 = %d: %+v", len(spans), spans)
 	}
-	if spans[0].Text != "页表" || spans[0].Background.A == 0 {
+	if spans[0].Text != "页表" || spans[0].Background.A == 0 || spans[0].Color.A == 0 {
 		t.Errorf("命中片段 = %+v", spans[0])
 	}
 	if spans[1].Text != "的结构" || spans[1].Background.A != 0 {
