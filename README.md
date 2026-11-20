@@ -1,4 +1,4 @@
-# <img src="resources/icon.png" width=25> 流记 · FlowLog
+# <img src="resources/icon.png" width=30> 流记 · FlowLog
 
 一个记录每日学习情况的桌面应用：按科目、章节与要点组织学记，附带当天待办。
 
@@ -14,10 +14,9 @@
 
 流记使用 [MyGo](https://mygo.run) 的原生 UI 模式编写：界面由 Go 代码描述，由 MyGo 在 GPU 上绘制，不加载 WebView，也没有 HTML、JavaScript 与前端构建步骤。
 
-界面遵循 Material Design 3：主色、容器层级、圆角与动效都按 MD3 的角色划分。
-浅色是淡蓝底 + 近白卡片，深色是深靛蓝底，所有 hover 与状态变化都有 150ms 的过渡。
+界面采用类 Material Design 3 风格：主色、容器层级、圆角与动效都按 MD3 的角色划分。
 
-## 功能
+## ◈ 功能
 
 | 模块   | 说明                                                                                                                         |
 | ------ | ---------------------------------------------------------------------------------------------------------------------------- |
@@ -25,37 +24,33 @@
 | 学记   | 按日期倒序的记录卡片；一条记录包含科目、章、节、若干要点与备注，可标记要点为已复习；支持按科目筛选与全文搜索，命中的字带高亮 |
 | 待办   | 全部待办列表；可为每条设置截止日期，按截止日期排序；支持勾选、删除（可撤销）、按状态筛选                                     |
 | 侧边栏 | 今天记录了多少条、还有多少待办；月历中标出有记录的日子，点一天直接跳到那一天的学记                                           |
-| 设置   | 称呼、外观（深色 / 浅色 / 跟随系统）、数据备份与恢复、自动备份、快捷键、关于与版本更新                                       |
+| 设置   | 称呼、外观、数据备份与恢复、自动备份、快捷键、关于与版本更新                                                                 |
 
-学记与待办是两套独立的数据：写待办不会影响学记的统计，删除某天的学记也不会删掉待办。
-数据保存在本地单个 SQLite 数据库中，可整体复制或通过内置的备份功能导出。
+## ◈ 截图
 
-## 截图
-
-| 首页 · 深色（默认）                | 首页 · 浅色                          |
-| ---------------------------------- | ------------------------------------ |
+| 首页 · 深色（默认）                | 首页 · 浅色                                  |
+| ---------------------------------- | -------------------------------------------- |
 | ![首页](docs/screenshots/home.png) | ![首页浅色](docs/screenshots/home-light.png) |
 
-| 学记                                       | 学记 · 浅色                                       |
-| ------------------------------------------ | ------------------------------------------------- |
-| ![学记](docs/screenshots/study.png)        | ![学记浅色](docs/screenshots/study-light.png)     |
+| 学记                                | 学记 · 浅色                                   |
+| ----------------------------------- | --------------------------------------------- |
+| ![学记](docs/screenshots/study.png) | ![学记浅色](docs/screenshots/study-light.png) |
 
 | 待办                               | 设置                                   |
 | ---------------------------------- | -------------------------------------- |
 | ![待办](docs/screenshots/todo.png) | ![设置](docs/screenshots/settings.png) |
 
-| 搜索高亮                                         | 写学记                                 |
-| ------------------------------------------------ | -------------------------------------- |
-| ![搜索高亮](docs/screenshots/study-search.png)   | ![写学记](docs/screenshots/editor.png) |
+| 搜索高亮                                       | 写学记                                 |
+| ---------------------------------------------- | -------------------------------------- |
+| ![搜索高亮](docs/screenshots/study-search.png) | ![写学记](docs/screenshots/editor.png) |
 
-## 环境要求
+## ◈ 环境要求
 
 - Go 1.27 或更高版本
 - MyGo CLI：项目已在 `go.mod` 中以 `tool` 依赖固定版本，直接用 `go tool mygo` 调用，无需单独安装
-- 构建安装包时需要 NSIS（Windows 安装器）等平台工具，详见
-  [MyGo 分发文档](https://mygo.run/docs/distribution)
+- 构建安装包时需要 NSIS（Windows 安装器）等平台工具，详见 [MyGo 分发文档](https://mygo.run/docs/distribution)
 
-## 开发
+## ◈ 开发
 
 ```bash
 go tool mygo dev      # 编译、启动应用，并在 Go 代码改动后自动重启
@@ -70,7 +65,7 @@ gofmt -l .            # 检查格式
 go test ./internal/view -run TestPreview -v
 ```
 
-## 构建
+## ◈ 构建
 
 ```bash
 go tool mygo build                 # 当前平台
@@ -79,7 +74,7 @@ go tool mygo build -platform windows/amd64,darwin/arm64
 
 产物位于 `build/`。Windows 生成安装包，macOS 生成 `.app` 与 `.dmg`，Linux 生成 `.tar.gz` 与安装脚本。
 
-## 数据
+## ◈ 数据
 
 数据库文件为 `data/flowlog.db`（SQLite）。位置随运行方式变化：
 
@@ -110,9 +105,8 @@ go tool mygo build -platform windows/amd64,darwin/arm64
 - **导出备份**：生成一个 JSON 文件，包含全部学记、待办与设置。
 - **从备份恢复**：选择备份文件，覆盖当前全部数据（会二次确认）；
   覆盖之前会先自动存一份 `flowlog-before-restore-*.json`，恢复错了还能找回。
-- 备份是 JSON，格式与手动导出的一样，也可以直接打开来看。
 
-## 自动更新
+## ◈ 自动更新
 
 应用使用 MyGo 的更新机制：更新包由 Ed25519 私钥签名，应用内置对应公钥，启动后自动检查、
 下载、校验并替换文件，随后重启生效。
@@ -120,9 +114,8 @@ go tool mygo build -platform windows/amd64,darwin/arm64
 ### 发布流程
 
 1. 修改 `mygo.json` 中的 `version`，在 `CHANGELOG.md` 中补一节 `## <版本号>`。
-2. 提交并打标签：`git tag v0.5.1 && git push origin v0.5.1`。
-3. GitHub Actions 读取该版本的 CHANGELOG 作为发布说明，创建草稿 Release，
-   并在三个平台并行构建、上传产物。
+2. 提交并打标签：`git tag v0.x.x && git push origin v0.x.x`。
+3. GitHub Actions 读取该版本的 CHANGELOG 作为发布说明，创建草稿 Release，并在三个平台并行构建、上传产物。
 4. 全部成功后自动发布；已安装的应用会在下次检查时看到新版本。
 
 工作流见 [.github/workflows/release.yml](.github/workflows/release.yml)。
@@ -136,11 +129,10 @@ go tool mygo build -platform windows/amd64,darwin/arm64
 | `MYGO_UPDATER_PRIVATE_KEY` | `mygo-update.key` 文件的完整内容 |
 
 私钥由 `go tool mygo keygen` 生成，默认位于用户配置目录的 `mygo/update-keys/` 下。
-私钥丢失将无法再向已安装的用户推送更新，请妥善备份；泄露则任何人都能伪造更新。
 
-可选（正式签名，避免 macOS Gatekeeper 与 Windows SmartScreen 拦截）：
-`MACOS_CERTIFICATE`、`MACOS_CERTIFICATE_PASSWORD`、`APPLE_ID`、`APPLE_TEAM_ID`、
-`APPLE_APP_PASSWORD`、`WINDOWS_CERTIFICATE`、`WINDOWS_CERTIFICATE_PASSWORD`。
+私钥丢失将无法再向已安装的用户推送更新，请妥善备份。
+
+可选（正式签名，避免 macOS Gatekeeper 与 Windows SmartScreen 拦截）：详见 [MyGo 应用签名](https://mygo.run/zh/docs/github-actions)
 
 ### 更新如何生效
 
@@ -150,7 +142,7 @@ go tool mygo build -platform windows/amd64,darwin/arm64
 - 开发构建（`mygo dev`、`go run`）与包管理器安装的版本不参与自动更新；
   用户也可以从 Releases 手动下载新版本。
 
-## 项目结构
+## ◈ 项目结构
 
 ```
 main.go                  启动、窗口、数据库打开与关闭、发布说明
@@ -168,12 +160,12 @@ docs/                    开发手记与界面截图
 依赖方向是单向的：`design ← app ← pages ← view ← main`。
 页面只读状态、调动作；状态层不画界面；设计系统不认识业务。
 
-## 已知限制
+## ◈ 已知限制
 
 - 界面文案为中文；内置控件（日历、数字输入）已随中文语言包显示。
 - 自动更新依赖 GitHub Releases，需要仓库公开或使用可访问的 HTTPS 地址。
 - 目前仅支持单窗口、本地单用户数据。
 
-## 许可
+## ◈ 许可
 
 [MIT](LICENSE)
