@@ -37,10 +37,10 @@ func StudyEditor(c *ui.Context, a *app.App) {
 		ui.Column(c).Width(560).Gap(16).Children(func() {
 			// 标题行
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, title).FontSize(design.FontHeading).FontWeight(600).
+				design.Text(c, title).FontSize(design.FontHeading).FontWeight(600).
 					TextColor(p.OnSurface).SingleLine()
 				ui.Spacer(c)
-				ui.Text(c, app.CmdName+" + Enter 保存").FontSize(design.FontTiny).
+				design.Text(c, app.CmdName+design.T(" + Enter 保存")).FontSize(design.FontTiny).
 					TextColor(p.OnSurfaceVariant)
 				design.IconButton(c, "close-editor", "关闭", design.IconClose, func() {
 					a.Editor.Open = false
@@ -56,7 +56,7 @@ func StudyEditor(c *ui.Context, a *app.App) {
 								ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
 									ui.Icon(c, design.IconCalendar).FontSize(design.FontCaption).
 										TextColor(p.OnSurfaceVariant)
-									ui.Text(c, "日期").FontSize(design.FontCaption).
+									design.Text(c, "日期").FontSize(design.FontCaption).
 										TextColor(p.OnSurfaceVariant)
 								})
 								ui.Text(c, model.DisplayDate(a.Editor.Date.Format(model.DateLayout))).
@@ -65,14 +65,14 @@ func StudyEditor(c *ui.Context, a *app.App) {
 						} else {
 							ui.Column(c).Width(168).Children(func() {
 								ui.Field(c, "日期", func() {
-									ui.DateInput(c.Key("editor-date"), &a.Editor.Date).Label("日期")
+									ui.DateInput(c.Key("editor-date"), &a.Editor.Date).Label(design.T("日期"))
 								})
 							})
 						}
 						ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 							ui.Field(c, "科目", func() {
 								ui.Autocomplete(c.Key("editor-subject"), &a.Editor.Subject, a.Subjects()).
-									Placeholder("计算机组成原理").Label("科目").AutoFocus()
+									Placeholder("计算机组成原理").Label(design.T("科目")).AutoFocus()
 							})
 						})
 					})
@@ -82,39 +82,38 @@ func StudyEditor(c *ui.Context, a *app.App) {
 						ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 							ui.Field(c, "章", func() {
 								ui.TextInput(c.Key("editor-chapter"), &a.Editor.Chapter).
-									Label("章").Placeholder("第 4 章 存储系统")
+									Label("章").Placeholder(design.T("第 4 章 存储系统"))
 							})
 						})
 						ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 							ui.Field(c, "节", func() {
 								ui.TextInput(c.Key("editor-section"), &a.Editor.Section).
-									Label("节").Placeholder("第 8 节 虚拟存储器")
+									Label("节").Placeholder(design.T("第 8 节 虚拟存储器"))
 							})
 						})
 					})
-					ui.Text(c, "章、节都可以留空，只写科目也能保存").
+					design.Text(c, "章、节都可以留空，只写科目也能保存").
 						FontSize(design.FontTiny).TextColor(p.OnSurfaceVariant)
 
 					ui.Field(c, "要点", func() {
-						ui.TextArea(c.Key("editor-points"), &a.Editor.Points).Label("要点").
+						ui.TextArea(c.Key("editor-points"), &a.Editor.Points).Label(design.T("要点")).
 							Lines(5, 10).
 							ScrollbarAxes(false, false).
 							Placeholder("一行一条，例如：\n页式虚拟存储器的地址映射\n页表的结构与访问流程")
 					})
-					ui.Text(c, "每行一条，会自动去掉开头的「- 」").
+					design.Text(c, "每行一条，会自动去掉开头的「- 」").
 						FontSize(design.FontTiny).TextColor(p.OnSurfaceVariant)
 
 					// 时长 + 备注
 					ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
 						ui.Column(c).Width(168).Children(func() {
 							ui.Field(c, "学习时长（分钟）", func() {
-								ui.NumberInput(c.Key("editor-minutes"), &a.Editor.Minutes, 0, 600, 5).
-									Label("学习时长")
+								design.NumberField(c, "editor-minutes", &a.Editor.Minutes, 0, 600, 5, 56, nil)
 							})
 						})
 						ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 							ui.Field(c, "备注", func() {
-								ui.TextArea(c.Key("editor-note"), &a.Editor.Note).Label("备注").
+								ui.TextArea(c.Key("editor-note"), &a.Editor.Note).Label(design.T("备注")).
 									Lines(1, 3).
 									ScrollbarAxes(false, false).
 									Placeholder("可选")

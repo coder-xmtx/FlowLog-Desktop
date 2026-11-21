@@ -26,7 +26,7 @@ func Notes(c *ui.Context, a *app.App) {
 	ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 		design.PageHeader(c, "随笔", subtitle, func() {
 			search := ui.SearchField(c.Key("note-search"), &a.NoteQuery).
-				Placeholder("搜索随笔").Label("搜索随笔").Width(220).
+				Placeholder("搜索随笔").Label(design.T("搜索随笔")).Width(220).
 				Height(design.ControlHeight)
 			_ = search
 			design.FilledButton(c, "note-add", "写随笔", design.IconPen, func() {
@@ -125,10 +125,10 @@ func NoteEditor(c *ui.Context, a *app.App) {
 
 		ui.Column(c).Width(560).Gap(16).Children(func() {
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, title).FontSize(design.FontHeading).FontWeight(600).
+				design.Text(c, title).FontSize(design.FontHeading).FontWeight(600).
 					TextColor(p.OnSurface).SingleLine()
 				ui.Spacer(c)
-				ui.Text(c, app.CmdName+" + Enter 保存").FontSize(design.FontTiny).
+				design.Text(c, app.CmdName+design.T(" + Enter 保存")).FontSize(design.FontTiny).
 					TextColor(p.OnSurfaceVariant)
 				design.IconButton(c, "close-note-editor", "关闭", design.IconClose, func() {
 					a.NoteEditor.Open = false
@@ -137,12 +137,12 @@ func NoteEditor(c *ui.Context, a *app.App) {
 
 			ui.Column(c).Width(168).Children(func() {
 				ui.Field(c, "日期", func() {
-					ui.DateInput(c.Key("note-date"), &a.NoteEditor.Date).Label("日期")
+					ui.DateInput(c.Key("note-date"), &a.NoteEditor.Date).Label(design.T("日期"))
 				})
 			})
 
 			ui.Field(c, "内容", func() {
-				ui.TextArea(c.Key("note-text"), &a.NoteEditor.Text).Label("内容").
+				ui.TextArea(c.Key("note-text"), &a.NoteEditor.Text).Label(design.T("内容")).
 					Lines(8, 16).
 					Placeholder("今天想记下来的事…")
 			})

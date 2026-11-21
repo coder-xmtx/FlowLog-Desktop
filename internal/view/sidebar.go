@@ -22,11 +22,11 @@ func Sidebar(c *ui.Context, a *app.App) {
 		brand(c)
 
 		ui.Column(c).Gap(2).Children(func() {
-			navItem(c, a, "/", design.IconHome, "首页", 0)
-			navItem(c, a, "/study", design.IconBook, "学记", a.TodayEntryCount())
-			navItem(c, a, "/notes", design.IconNote, "随笔", a.TodayNoteCount())
-			navItem(c, a, "/todo", design.IconCheckCircle, "待办", a.OpenTodoCount())
-			navItem(c, a, "/settings", design.IconSettings, "设置", 0)
+			navItem(c, a, "/", design.IconHome, design.T("首页"), 0)
+			navItem(c, a, "/study", design.IconBook, design.T("学记"), a.TodayEntryCount())
+			navItem(c, a, "/notes", design.IconNote, design.T("随笔"), a.TodayNoteCount())
+			navItem(c, a, "/todo", design.IconCheckCircle, design.T("待办"), a.OpenTodoCount())
+			navItem(c, a, "/settings", design.IconSettings, design.T("设置"), 0)
 		})
 
 		ui.Spacer(c)
@@ -46,7 +46,7 @@ func brand(c *ui.Context) {
 		}
 		ui.Column(c).Gap(1).Children(func() {
 			ui.Text(c, app.Name).FontSize(17).FontWeight(600).TextColor(p.OnSurface).SingleLine()
-			ui.Text(c, "FLOWLOG").FontSize(design.FontTiny).FontWeight(500).
+			design.Text(c, "FLOWLOG").FontSize(design.FontTiny).FontWeight(500).
 				LetterSpacing(1.6).TextColor(p.OnSurfaceVariant).SingleLine()
 		})
 	})
@@ -70,7 +70,7 @@ func navItem(c *ui.Context, a *app.App, path string, icon *ui.SVG, label string,
 
 	item.Children(func() {
 		ui.Icon(c, icon).FontSize(design.FontHeading).TextColor(fg)
-		ui.Text(c, label).FontSize(design.FontBody).FontWeight(500).
+		design.Text(c, label).FontSize(design.FontBody).FontWeight(500).
 			TextColor(fg).Grow(1).SingleLine().Bold()
 		if badge > 0 {
 			design.Chip(c, strconv.Itoa(badge), design.ToneSecondary)
@@ -96,10 +96,9 @@ func sidebarFooter(c *ui.Context, a *app.App) {
 		if !a.LastDark {
 			icon, label, tip = design.IconMoon, "深色", "切换到深色"
 		}
-		design.IconButton(c, "theme-toggle", tip, icon, a.ToggleTheme)
-		ui.Text(c, label).FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant).
-			Tooltip(tip).SingleLine()
+		design.IconButton(c, "theme-toggle", design.T(tip), icon, a.ToggleTheme)
+		design.Text(c, label).FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant).SingleLine()
 		ui.Spacer(c)
-		ui.Text(c, "v"+app.Version).FontSize(design.FontTiny).TextColor(p.OnSurfaceVariant)
+		design.Text(c, "v"+app.Version).FontSize(design.FontTiny).TextColor(p.OnSurfaceVariant).MarginEnd(15)
 	})
 }

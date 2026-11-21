@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"flowlog-desktop/internal/lang"
+	"flowlog-desktop/internal/model"
 	"flowlog-desktop/internal/store"
 )
 
@@ -57,9 +59,9 @@ func (a *App) BackupStatus() (line, dir string) {
 	dir = a.BackupDir()
 	info, ok := store.LatestBackup(dir)
 	if !ok {
-		return "还没有备份过", dir
+		return lang.T("还没有备份过"), dir
 	}
-	return fmt.Sprintf("上次备份 %s · %s", info.ModTime.Format("1 月 2 日 15:04"), FormatSize(info.Size)), dir
+	return lang.Format("上次备份 %s · %s", info.ModTime.Format(model.ShortDateTimeLayout()), FormatSize(info.Size)), dir
 }
 
 // FormatSize 把字节数写成人类可读的大小。

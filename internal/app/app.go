@@ -102,6 +102,8 @@ type App struct {
 	BG *ui.Bitmap
 	// BGCopyright 是图片版权说明。
 	BGCopyright string
+	// BGDay 是当前背景图所属的日期（2006-01-02）。
+	BGDay string
 	// BGLoading 表示背景图正在下载。
 	BGLoading bool
 
@@ -232,6 +234,8 @@ func New(s *store.Store) (*App, error) {
 
 // Start 做那些要等窗口就绪之后才能开始的事：引导、背景图、备份、更新检查。
 func (a *App) Start() {
+	a.ApplyLanguage()
+	refreshShellIcons()
 	if !a.Settings.Onboarded {
 		a.Onboarding.Open = true
 		a.Onboarding.Name = a.Settings.UserName

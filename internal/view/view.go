@@ -24,30 +24,29 @@ func Root(c *ui.Context, a *app.App) {
 	flushToasts(c, a)
 	shortcuts(c, a)
 
-	root := ui.Column(c).Fill()
+	root := ui.Column(c).Fill().Padding(titleBarHeight, 0, 0, 0)
 	root.Children(func() {
-		titleBar(c, a)
 		ui.Row(c).Grow(1).AlignItems(ui.Stretch).Children(func() {
 			Sidebar(c, a)
 			a.Router.View(c, func(r *ui.Route) {
 				switch {
 				case r.Match("/"):
-					r.Title("流记 · 首页")
+					r.Title(design.T("流记 · 首页"))
 					pages.Home(c, a)
 				case r.Match("/study"):
-					r.Title("流记 · 学记")
+					r.Title(design.T("流记 · 学记"))
 					pages.Study(c, a)
 				case r.Match("/notes"):
-					r.Title("流记 · 随笔")
+					r.Title(design.T("流记 · 随笔"))
 					pages.Notes(c, a)
 				case r.Match("/todo"):
-					r.Title("流记 · 待办")
+					r.Title(design.T("流记 · 待办"))
 					pages.Todo(c, a)
 				case r.Match("/settings"):
-					r.Title("流记 · 设置")
+					r.Title(design.T("流记 · 设置"))
 					pages.Settings(c, a)
 				default:
-					ui.Text(c, "没有这个页面")
+					design.Text(c, "没有这个页面")
 				}
 			})
 		})
@@ -58,6 +57,12 @@ func Root(c *ui.Context, a *app.App) {
 	pages.NoteEditor(c, a)
 	ConfirmDialog(c, a)
 	OnboardingDialog(c, a)
+
+	// 标题栏画在弹层之上：否则写学记 / 随笔时遮罩会挡住拖动与窗口按钮。
+	w, _ := c.Size()
+	ui.Overlay(c, func() {
+		titleBar(c, a).Absolute().Left(0).Top(0).Width(w)
+	})
 }
 
 // applyTheme 把窗口主题换成流记的浅色或深色。
@@ -86,9 +91,9 @@ func effectiveDark(c *ui.Context, a *app.App) bool {
 func flushToasts(c *ui.Context, a *app.App) {
 	for _, t := range a.TakeToasts() {
 		c.AddToast(ui.Toast{
-			ID:          t.Title, // 同一个标题的提示就地更新，而不是叠一摞
-			Title:       t.Title,
-			Description: t.Desc,
+			ID:          design.T(t.Title), // 同一个标题的提示就地更新，而不是叠一摞
+			Title:       design.T(t.Title),
+			Description: design.T(t.Desc),
 			Type:        t.Type,
 			Action:      t.Action,
 			OnAction:    t.OnAct,

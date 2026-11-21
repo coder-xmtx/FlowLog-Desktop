@@ -1,7 +1,7 @@
 package app
 
 import (
-	"fmt"
+	"flowlog-desktop/internal/lang"
 	"strings"
 	"time"
 
@@ -104,7 +104,7 @@ func (a *App) ChooseBackup() {
 			a.Confirm = ConfirmState{
 				Open:  true,
 				Title: "从备份恢复？",
-				Message: fmt.Sprintf("备份包含 %d 天记录与 %d 条待办。恢复会覆盖当前全部数据，且无法撤销。",
+				Message: lang.Format("备份包含 %d 天记录与 %d 条待办。恢复会覆盖当前全部数据，且无法撤销。",
 					len(b.Days), len(b.Todos)),
 				Yes:     "恢复",
 				YesFunc: func() { go a.restoreBackup(b) },
@@ -128,7 +128,7 @@ func (a *App) restoreBackup(b *store.Backup) {
 	}
 	a.Post(func() {
 		a.Reload()
-		a.Toast("恢复完成", fmt.Sprintf("%d 天记录 · %d 条待办", len(b.Days), len(b.Todos)))
+		a.Toast(lang.T("恢复完成"), lang.Format("%d 天记录 · %d 条待办", len(b.Days), len(b.Todos)))
 	})
 }
 
