@@ -97,9 +97,8 @@ func sidebarFooter(c *ui.Context, a *app.App) {
 			icon, label, tip = design.IconMoon, "深色", "切换到深色"
 		}
 		design.IconButton(c, "theme-toggle", tip, icon, a.ToggleTheme)
-		ui.Text(c, label).FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant).
-			Tooltip(tip).SingleLine()
+		ui.Text(c, label).FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant).SingleLine()
 		ui.Spacer(c)
-		ui.Text(c, "v"+app.Version).FontSize(design.FontTiny).TextColor(p.OnSurfaceVariant)
+		ui.Text(c, "v"+app.Version).FontSize(design.FontTiny).TextColor(p.OnSurfaceVariant).MarginEnd(15)
 	})
 }

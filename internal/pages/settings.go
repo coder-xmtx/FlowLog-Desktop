@@ -189,7 +189,7 @@ func settingsAbout(c *ui.Context, a *app.App) {
 	design.SectionCard(c, "关于", "", func() {
 		ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() {
 			if bmp := app.Icon(); bmp != nil {
-				ui.Image(c, bmp).Size(56, 56).Radius(16).Shrink(0)
+				ui.Image(c, bmp).Size(56, 56).Radius(0).Shrink(0)
 			}
 			ui.Column(c).Gap(4).Children(func() {
 				ui.Row(c).Gap(8).AlignItems(ui.Baseline).Children(func() {
