@@ -1,11 +1,11 @@
 package app
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 	"time"
 
+	"flowlog-desktop/internal/lang"
 	"flowlog-desktop/internal/model"
 )
 
@@ -18,7 +18,7 @@ import (
 // 返回是否写入成功；失败时会弹一条错误提示。
 func (a *App) SaveTodo(todo model.Todo) bool {
 	if err := a.Store.SaveTodo(todo); err != nil {
-		a.ToastError("保存待办失败", err.Error())
+		a.ToastError(lang.T("保存待办失败"), err.Error())
 		return false
 	}
 	if i := a.TodoIndex(todo.ID); i >= 0 {
@@ -33,7 +33,7 @@ func (a *App) SaveTodo(todo model.Todo) bool {
 // DeleteTodoRow 从数据库与内存里删掉一条待办。
 func (a *App) DeleteTodoRow(id string) bool {
 	if err := a.Store.DeleteTodo(id); err != nil {
-		a.ToastError("删除待办失败", err.Error())
+		a.ToastError(lang.T("删除待办失败"), err.Error())
 		return false
 	}
 	for i := range a.Todos {
@@ -151,7 +151,7 @@ func (a *App) DeleteTodo(id string) {
 	if !a.DeleteTodoRow(id) {
 		return
 	}
-	a.ToastUndo("已删除「"+backup.Text+"」", "撤销", func() {
+	a.ToastUndo(lang.Format("已删除「%s」", backup.Text), lang.T("撤销"), func() {
 		a.SaveTodo(backup)
 	})
 }
@@ -176,7 +176,7 @@ func (a *App) ClearDone() {
 		}
 	}
 	a.Todos = kept
-	a.ToastUndo(fmt.Sprintf("已清除 %d 条已完成", len(backup)), "撤销", func() {
+	a.ToastUndo(lang.Format("已清除 %d 条已完成", len(backup)), lang.T("撤销"), func() {
 		for _, todo := range backup {
 			a.SaveTodo(todo)
 		}

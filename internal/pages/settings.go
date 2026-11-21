@@ -6,6 +6,7 @@ import (
 
 	"flowlog-desktop/internal/app"
 	design "flowlog-desktop/internal/design"
+	"flowlog-desktop/internal/lang"
 	"flowlog-desktop/internal/model"
 
 	"github.com/egoist/mygo/ui"
@@ -22,6 +23,7 @@ func Settings(c *ui.Context, a *app.App) {
 		ui.Scroll(c).Grow(1).Padding(6, 32, 28).Gap(16).Children(func() {
 			settingsAccount(c, a)
 			settingsAppearance(c, a)
+			settingsLanguage(c, a)
 			settingsData(c, a, days, entries, points, todos)
 			settingsShortcuts(c)
 			settingsAbout(c, a)
@@ -36,7 +38,7 @@ func settingsAccount(c *ui.Context, a *app.App) {
 	design.SectionCard(c, "账户", "", func() {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 			in := ui.TextInput(c.Key("settings-name"), &a.Settings.UserName).
-				Label("称呼").MaxLength(24).Placeholder("你的称呼").Height(design.ControlHeight).Grow(1)
+				Label(design.T("称呼")).MaxLength(24).Placeholder(design.T("你的称呼")).Height(design.ControlHeight).Grow(1)
 			if in.Submitted() {
 				a.SaveSettings()
 				a.Toast("已保存", "称呼已更新")
@@ -46,7 +48,7 @@ func settingsAccount(c *ui.Context, a *app.App) {
 				a.Toast("已保存", "称呼已更新")
 			})
 		})
-		ui.Text(c, "首页的问候会用到这个称呼，随时可以修改").
+		design.Text(c, "首页的问候会用到这个称呼，随时可以修改").
 			FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant)
 	})
 }
@@ -78,7 +80,31 @@ func settingsAppearance(c *ui.Context, a *app.App) {
 			}
 			a.SetTheme(theme)
 		}
-		ui.Text(c, "默认深色；选择「跟随系统」后，应用会随系统的深浅色切换").
+		design.Text(c, "默认深色；选择「跟随系统」后，应用会随系统的深浅色切换").
+			FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant)
+	})
+}
+
+// settingsLanguage 是界面语言：中文（默认）与英文。
+func settingsLanguage(c *ui.Context, a *app.App) {
+	p := design.PaletteOf(c)
+	design.SectionCard(c, "语言", "", func() {
+		choice := 0
+		if a.Settings.Language == lang.English {
+			choice = 1
+		}
+		seg := design.IconSegmented(c, "settings-lang", &choice, 400,
+			design.SegmentOption{Icon: design.IconGlobe, Label: "中文"},
+			design.SegmentOption{Icon: design.IconLetterA, Label: "English"},
+		)
+		if seg.Changed() {
+			if choice == 1 {
+				a.SetLanguage(lang.English)
+			} else {
+				a.SetLanguage(lang.Chinese)
+			}
+		}
+		design.Text(c, "切换后界面立即生效，记录内容不会翻译").
 			FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant)
 	})
 }
@@ -92,7 +118,7 @@ func settingsData(c *ui.Context, a *app.App, days, entries, points, todos int) {
 
 	design.SectionCard(c, "数据", "本地 SQLite 数据库", func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Textf(c, "%d 天 · %d 条记录 · %d 条要点 · %d 条待办",
+			design.Textf(c, "%d 天 · %d 条记录 · %d 条要点 · %d 条待办",
 				days, entries, points, todos).FontSize(design.FontBody).TextColor(p.OnSurface)
 			ui.Spacer(c)
 			ui.Text(c, app.FormatSize(a.Store.Size())).FontSize(design.FontCaption).
@@ -116,7 +142,7 @@ func settingsData(c *ui.Context, a *app.App, days, entries, points, todos int) {
 			design.OutlinedButton(c, "restore-backup", "从备份恢复", design.IconUpload, a.ChooseBackup)
 		})
 
-		ui.Text(c, "备份是一个 JSON 文件，包含全部记录、待办与设置，可以复制到别的机器上恢复").
+		design.Text(c, "备份是一个 JSON 文件，包含全部记录、待办与设置，可以复制到别的机器上恢复").
 			FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant).LineHeight(1.6)
 
 		autoBackupRow(c, a)
@@ -129,34 +155,33 @@ func autoBackupRow(c *ui.Context, a *app.App) {
 	design.Divider(c)
 
 	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, "自动备份").FontSize(design.FontBody).FontWeight(600).TextColor(p.OnSurface)
+		design.Text(c, "自动备份").FontSize(design.FontBody).FontWeight(600).TextColor(p.OnSurface)
 
 		// Switch 直接绑定设置字段；OnChange 在绑定值写入之后才跑，写库即可。
 		sw := ui.Switch(c.Key("backup-switch"), &a.Settings.AutoBackup).
-			Label("开启自动备份").Tooltip("每天第一次启动时自动备份一次")
+			Label(design.T("开启自动备份")).Tooltip(design.T("每天第一次启动时自动备份一次"))
 		sw.OnChange(a.SaveSettings)
 
-		ui.Text(c, "每天首次启动时备份").FontSize(design.FontCaption).
+		design.Text(c, "每天首次启动时备份").FontSize(design.FontCaption).
 			TextColor(p.OnSurfaceVariant)
 		ui.Spacer(c)
 
 		// 「保留 N 份」：NumberInput 绑定 float64，本地副本每帧从设置推出。
 		keep := float64(a.Settings.BackupKeep)
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "保留").FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant)
-			num := ui.NumberInput(c.Key("backup-keep"), &keep,
-				model.BackupKeepMin, model.BackupKeepMax, 1).Label("保留份数").Width(112)
-			num.OnChange(func() {
-				a.Settings.BackupKeep = int(keep)
-				a.SaveSettings()
-			})
-			ui.Text(c, "份").FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant)
+			design.Text(c, "保留").FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant)
+			design.NumberField(c, "backup-keep", &keep,
+				model.BackupKeepMin, model.BackupKeepMax, 1, 56, func() {
+					a.Settings.BackupKeep = int(keep)
+					a.SaveSettings()
+				})
+			design.Text(c, "份").FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant)
 		})
 	})
 
 	line, dir := a.BackupStatus()
 	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, line).FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant).
+		design.Text(c, line).FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant).
 			SingleLine().Grow(1).Tooltip(dir)
 		design.TextButton(c, "backup-now", "立即备份", a.BackupNow)
 	})
@@ -176,7 +201,7 @@ func settingsShortcuts(c *ui.Context) {
 		ui.Column(c).Gap(2).Children(func() {
 			for _, k := range keys {
 				design.KVRow(c, k.Key, func() {
-					ui.Text(c, k.What).FontSize(design.FontBody).TextColor(p.OnSurfaceVariant)
+					design.Text(c, k.What).FontSize(design.FontBody).TextColor(p.OnSurfaceVariant)
 				})
 			}
 		})
@@ -198,7 +223,7 @@ func settingsAbout(c *ui.Context, a *app.App) {
 					ui.Text(c, app.NameEn).FontSize(design.FontSmall).TextColor(p.OnSurfaceVariant)
 					design.Chip(c, "v"+app.Version, design.TonePrimary)
 				})
-				ui.Text(c, app.Tagline).FontSize(design.FontSmall).TextColor(p.OnSurfaceVariant)
+				design.Text(c, app.Tagline).FontSize(design.FontSmall).TextColor(p.OnSurfaceVariant)
 			})
 		})
 
@@ -215,11 +240,11 @@ func settingsAbout(c *ui.Context, a *app.App) {
 			ui.Text(c, app.License).FontSize(design.FontBody).TextColor(p.OnSurface)
 		})
 		design.KVRow(c, "界面", func() {
-			ui.Text(c, "MyGo "+app.MyGoVersionText()+" · 原生 UI").
+			design.Textf(c, "MyGo %s · 原生 UI", app.MyGoVersionText()).
 				FontSize(design.FontBody).TextColor(p.OnSurface)
 		})
 		design.KVRow(c, "编译", func() {
-			ui.Text(c, "Go "+app.GoVersion()+" · "+app.PlatformName()).
+			design.Textf(c, "Go %s · %s", app.GoVersion(), app.PlatformName()).
 				FontSize(design.FontBody).TextColor(p.OnSurfaceVariant)
 		})
 
@@ -234,19 +259,19 @@ func updateRow(c *ui.Context, a *app.App) {
 
 	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 		ui.Column(c).Gap(3).Grow(1).MinWidth(0).Children(func() {
-			ui.Text(c, "版本更新").FontSize(design.FontBody).FontWeight(600).TextColor(p.OnSurface)
+			design.Text(c, "版本更新").FontSize(design.FontBody).FontWeight(600).TextColor(p.OnSurface)
 			switch {
 			case !app.UpdateSupported():
-				ui.Text(c, "开发版与包管理器安装的版本不支持自动更新").
+				design.Text(c, "开发版与包管理器安装的版本不支持自动更新").
 					FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant)
 			case a.Update.Installing:
-				ui.Textf(c, "正在下载并安装，%d%%", int(a.Update.Progress*100)).
+				design.Textf(c, "正在下载并安装，%d%%", int(a.Update.Progress*100)).
 					FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant)
 			case a.Update.Version != "":
-				ui.Text(c, "发现新版本 v"+a.Update.Version+"，安装后会自动重启").
+				design.Textf(c, "发现新版本 v%s，安装后会自动重启", a.Update.Version).
 					FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant)
 			default:
-				ui.Text(c, "从 "+app.UpdateHost+" 获取更新").
+				design.Textf(c, "从 %s 获取更新", app.UpdateHost).
 					FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant)
 			}
 		})
@@ -273,20 +298,20 @@ func updateRow(c *ui.Context, a *app.App) {
 		ui.Progress(c, a.Update.Progress).FillWidth().Height(4)
 	}
 	if a.Update.Err != "" {
-		ui.Text(c, a.Update.Err).FontSize(design.FontCaption).TextColor(p.Error)
+		design.Text(c, a.Update.Err).FontSize(design.FontCaption).TextColor(p.Error)
 	}
 
 	// 有新版本时先看新版本的说明，否则看当前版本更新了什么。
 	switch {
 	case a.Update.Notes != "" && a.Update.Version != "":
-		ui.Text(c, "v"+a.Update.Version+" 更新内容").FontSize(design.FontCaption).
+		design.Textf(c, "v%s 更新内容", a.Update.Version).FontSize(design.FontCaption).
 			FontWeight(600).TextColor(p.OnSurfaceVariant)
-		ui.Text(c, notesText(a.Update.Notes, 6)).FontSize(design.FontCaption).
+		design.Text(c, notesText(a.Update.Notes, 6)).FontSize(design.FontCaption).
 			TextColor(p.OnSurfaceVariant).LineHeight(1.65)
 	case a.ReleaseNotes != "":
-		ui.Text(c, "本次更新（v"+app.Version+"）").FontSize(design.FontCaption).
+		design.Textf(c, "本次更新（v%s）", app.Version).FontSize(design.FontCaption).
 			FontWeight(600).TextColor(p.OnSurfaceVariant)
-		ui.Text(c, notesText(a.ReleaseNotes, 8)).FontSize(design.FontCaption).
+		design.Text(c, notesText(a.ReleaseNotes, 8)).FontSize(design.FontCaption).
 			TextColor(p.OnSurfaceVariant).LineHeight(1.65)
 	}
 }

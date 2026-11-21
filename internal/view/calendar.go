@@ -1,11 +1,13 @@
 package view
 
 import (
-	"fmt"
+	"strconv"
 	"time"
 
 	"flowlog-desktop/internal/app"
 	design "flowlog-desktop/internal/design"
+	"flowlog-desktop/internal/lang"
+	"flowlog-desktop/internal/model"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -20,29 +22,30 @@ func MonthCalendar(c *ui.Context, a *app.App) {
 
 	ui.Column(c).Padding(4, 6, 6).Gap(8).Children(func() {
 		ui.Row(c).Gap(2).AlignItems(ui.Center).Children(func() {
-			design.IconButton(c, "cal-prev", "上个月", design.IconLeft, func() {
+			design.IconButton(c, "cal-prev", design.T("上个月"), design.IconLeft, func() {
 				a.CalMonth = first.AddDate(0, -1, 0)
 			})
 
-			title := ui.Text(c, fmt.Sprintf("%d 年 %d 月", year, int(month))).
+			title := design.Text(c, model.MonthTitle(year, month)).
 				FontSize(design.FontCaption).FontWeight(600).TextColor(p.OnSurface)
 			title.Grow(1).TextAlign(ui.Center).Cursor(ui.CursorPointer).
-				Tooltip("回到本月").Label("回到本月")
+				Tooltip(design.T("回到本月")).Label(design.T("回到本月"))
 			if title.Clicked() {
 				now := time.Now()
 				a.CalMonth = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.Local)
 			}
 
-			design.IconButton(c, "cal-next", "下个月", design.IconRight, func() {
+			design.IconButton(c, "cal-next", design.T("下个月"), design.IconRight, func() {
 				a.CalMonth = first.AddDate(0, 1, 0)
 			})
 		})
 
 		// 星期表头，从周一开始
 		ui.Row(c).Children(func() {
-			for _, w := range []string{"一", "二", "三", "四", "五", "六", "日"} {
+			for i := 0; i < 7; i++ {
+				w := model.WeekdayHead(time.Date(2024, 1, 1+i, 0, 0, 0, 0, time.Local))
 				ui.Box(c).Grow(1).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, w).FontSize(design.FontTiny).TextColor(p.OnSurfaceVariant)
+					design.Text(c, w).FontSize(design.FontTiny).TextColor(p.OnSurfaceVariant)
 				})
 			}
 		})
@@ -84,9 +87,9 @@ func dayPill(c *ui.Context, a *app.App, year, month, day int) {
 		fill, fg = p.PrimaryContainer, p.OnPrimaryContainer
 	}
 
-	label := fmt.Sprintf("%d 月 %d 日", month, day)
+	label := model.DayLabel(year, time.Month(month), day)
 	if has {
-		label += "，有记录"
+		label += lang.T("，有记录")
 	}
 
 	box := ui.Box(c.Key("cal-" + date)).Height(28).Radius(14).Center().
@@ -99,7 +102,7 @@ func dayPill(c *ui.Context, a *app.App, year, month, day int) {
 		box.Border(1.5, ring)
 	}
 	box.Children(func() {
-		txt := ui.Text(c, fmt.Sprintf("%d", day)).FontSize(design.FontCaption).TextColor(fg)
+		txt := ui.Text(c, strconv.Itoa(day)).FontSize(design.FontCaption).TextColor(fg)
 		if has {
 			txt.FontWeight(600)
 		}

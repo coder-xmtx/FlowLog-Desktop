@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 	"errors"
-	"fmt"
+	"flowlog-desktop/internal/lang"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -38,7 +38,7 @@ func (a *App) CheckUpdates(manual bool) {
 	a.Redraw()
 
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		up, err := mygo.Updater.Check(ctx)
@@ -48,7 +48,7 @@ func (a *App) CheckUpdates(manual bool) {
 			case err != nil && manual:
 				a.Update.Err = UpdateErrText(err)
 			case up == nil && manual:
-				a.Toast("已是最新版本", "当前版本 v"+Version)
+				a.Toast(lang.T("已是最新版本"), lang.Format("当前版本 v%s", Version))
 			case up != nil:
 				a.Update.Version = up.Version
 				a.Update.Notes = up.Notes
@@ -112,5 +112,5 @@ func UpdateErrText(err error) string {
 	case errors.Is(err, context.DeadlineExceeded):
 		return "连接 Github 更新服务器超时，请检查网络环境，或需要使用梯子"
 	}
-	return fmt.Sprintf("检查更新失败：%v", err)
+	return lang.Format("检查更新失败：%v", err)
 }

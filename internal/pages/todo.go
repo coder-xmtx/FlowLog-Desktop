@@ -1,7 +1,6 @@
 package pages
 
 import (
-	"fmt"
 	"strings"
 
 	"flowlog-desktop/internal/app"
@@ -18,19 +17,19 @@ func Todo(c *ui.Context, a *app.App) {
 
 	subtitle := "还没有待办"
 	if total > 0 {
-		subtitle = fmt.Sprintf("已完成 %d / %d", done, total)
+		subtitle = design.Tf("已完成 %d / %d", done, total)
 	}
 
 	ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 		design.PageHeader(c, "待办", subtitle, func() {
-			ui.Segmented(c.Key("todo-filter"), &a.TodoFilter, "全部", "进行中", "已完成").
-				Label("筛选")
+			ui.Segmented(c.Key("todo-filter"), &a.TodoFilter, design.T("全部"), design.T("进行中"), design.T("已完成")).
+				Label(design.T("筛选"))
 		})
 
 		// 输入行：内容 + 可选的截止日期 + 添加
 		ui.Row(c).Gap(10).Padding(2, 32, 12).Children(func() {
 			input := ui.TextInput(c.Key("todo-input"), &a.TodoDraft).
-				Placeholder("添加待办，回车即可添加").Label("新待办").
+				Placeholder("添加待办，回车即可添加").Label(design.T("新待办")).
 				Height(design.ControlHeight).Grow(1)
 			if input.Submitted() {
 				a.AddTodo()
@@ -49,7 +48,7 @@ func Todo(c *ui.Context, a *app.App) {
 		if total > 0 {
 			ui.Row(c).Gap(12).AlignItems(ui.Center).Padding(0, 32, 10).Children(func() {
 				ui.Progress(c, float64(done)/float64(total)).Grow(1).Height(6)
-				ui.Textf(c, "%d / %d", done, total).FontSize(design.FontCaption).
+				design.Textf(c, "%d / %d", done, total).FontSize(design.FontCaption).
 					TextColor(p.OnSurfaceVariant)
 				if done > 0 {
 					design.TextButton(c, "clear-done", "清除已完成", a.ClearDone)
@@ -89,7 +88,7 @@ func Todo(c *ui.Context, a *app.App) {
 				// 只保留竖向滚动条：行内容永远不该横向溢出。
 				ScrollbarAxes(false, true)
 
-			ui.Text(c, "按截止日期排序，没有截止日期的排在最后").
+			design.Text(c, "按截止日期排序，没有截止日期的排在最后").
 				FontSize(design.FontTiny).TextColor(p.OnSurfaceVariant).Padding(10, 4, 0)
 		})
 	})
@@ -130,7 +129,7 @@ func todoRow(c *ui.Context, a *app.App, index int) {
 
 	row.Children(func() {
 		cb := design.Checkbox(c, "todo-cb-"+id, &todo.Done, todo.Text)
-		cb.Tooltip("完成 / 取消完成")
+		cb.Tooltip(design.T("完成 / 取消完成"))
 		cb.OnChange(func() {
 			if i := a.TodoIndex(id); i >= 0 {
 				a.SaveTodo(a.Todos[i])
@@ -200,7 +199,7 @@ func duePicker(c *ui.Context, a *app.App) {
 		ui.Row(c).Gap(18).Padding(10).Children(func() {
 			// 左边：快捷选项
 			ui.Column(c).Width(120).Gap(4).Children(func() {
-				ui.Text(c, "截止日期").FontSize(design.FontCaption).FontWeight(600).
+				design.Text(c, "截止日期").FontSize(design.FontCaption).FontWeight(600).
 					TextColor(p.OnSurfaceVariant).Padding(0, 10, 6)
 				design.MenuButton(c, "due-today", "今天", func() { a.SetDue(0) })
 				design.MenuButton(c, "due-tomorrow", "明天", func() { a.SetDue(1) })

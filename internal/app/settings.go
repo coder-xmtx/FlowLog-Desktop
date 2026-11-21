@@ -1,6 +1,8 @@
 package app
 
 import (
+	"flowlog-desktop/internal/lang"
+	"github.com/egoist/mygo"
 	"strings"
 
 	"flowlog-desktop/internal/model"
@@ -22,7 +24,7 @@ func (a *App) FinishOnboarding() {
 	a.Settings.Onboarded = true
 	a.SaveSettings()
 	a.Onboarding.Open = false
-	a.Toast("欢迎使用流记", "你好，"+name)
+	a.Toast(lang.T("欢迎使用流记"), lang.Format("你好，%s", name))
 }
 
 // SkipOnboarding 跳过引导：不写称呼，但记住已经问过了。
@@ -70,4 +72,26 @@ func (a *App) SetTheme(theme string) {
 	}
 	a.Settings.Theme = theme
 	a.SaveSettings()
+}
+
+// SetLanguage 切换界面语言：写进设置、立即换掉当前语言，
+// 并让 MyGo 的内置控件（日历、日期框等）跟着换。
+func (a *App) SetLanguage(tag string) {
+	tag = lang.Normalize(tag)
+	if tag == a.Settings.Language {
+		return
+	}
+	a.Settings.Language = tag
+	a.SaveSettings()
+	lang.Set(tag)
+	mygo.App.SetLocale(tag)
+	a.Router.Replace(a.Router.Path())
+}
+
+// ApplyLanguage 在启动时应用保存的语言。
+func (a *App) ApplyLanguage() {
+	tag := lang.Normalize(a.Settings.Language)
+	a.Settings.Language = tag
+	lang.Set(tag)
+	mygo.App.SetLocale(tag)
 }

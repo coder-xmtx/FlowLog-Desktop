@@ -8,6 +8,7 @@ package model
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"flowlog-desktop/internal/lang"
 	"fmt"
 	"strings"
 	"time"
@@ -97,7 +98,7 @@ func (t Todo) DueStateOf(today string) DueState {
 func (t Todo) DueLabel(today string) string {
 	switch t.DueStateOf(today) {
 	case DueOverdue:
-		return "已过期 · " + DisplayDate(t.Due)
+		return lang.Format("已过期 · %s", DisplayDate(t.Due))
 	case DueToday:
 		return "今天到期"
 	case DueTomorrow:
@@ -134,6 +135,8 @@ type Settings struct {
 	AutoBackup bool `json:"autoBackup"`
 	// BackupKeep 是自动备份保留的份数（BackupKeepMin–BackupKeepMax）。
 	BackupKeep int `json:"backupKeep"`
+	// Language 是界面语言：zh-Hans（默认）或 en。
+	Language string `json:"language,omitempty"`
 }
 
 // 外观取值。新装默认深色。
@@ -234,58 +237,26 @@ func DayAfter(date string, n int) string {
 	return t.AddDate(0, 0, n).Format(DateLayout)
 }
 
-// Weekday 返回「星期四」。
+// Weekday 返回「星期四」，英文为 "Thursday"。
 func Weekday(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
+	if lang.IsEnglish() {
+		return enWeekdays[int(t.Weekday())]
+	}
 	return [...]string{"星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"}[int(t.Weekday())]
 }
 
-// WeekdayShort 返回「周四」。
+// WeekdayShort 返回「周四」，英文为 "Thu"。
 func WeekdayShort(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
+	if lang.IsEnglish() {
+		return [...]string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"}[int(t.Weekday())]
+	}
 	return "周" + []string{"日", "一", "二", "三", "四", "五", "六"}[int(t.Weekday())]
-}
-
-// DisplayDate 返回「11 月 13 日」。
-func DisplayDate(s string) string {
-	t := MustDate(s)
-	if t.IsZero() {
-		return s
-	}
-	return fmt.Sprintf("%d 月 %d 日", int(t.Month()), t.Day())
-}
-
-// DisplayDateFull 返回「2026 年 11 月 13 日」。
-func DisplayDateFull(s string) string {
-	t := MustDate(s)
-	if t.IsZero() {
-		return s
-	}
-	return fmt.Sprintf("%d 年 %d 月 %d 日", t.Year(), int(t.Month()), t.Day())
-}
-
-// RelativeDay 返回「今天」「昨天」「前天」或空字符串。
-func RelativeDay(s string) string {
-	t, err := ParseDate(s)
-	if err != nil {
-		return ""
-	}
-	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
-	diff := int(today.Sub(time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.Local)).Hours() / 24)
-	switch diff {
-	case 0:
-		return "今天"
-	case 1:
-		return "昨天"
-	case 2:
-		return "前天"
-	}
-	return ""
 }
 
 // DayNumber 返回日期是这一年的第几天。

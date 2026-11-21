@@ -1,11 +1,11 @@
 package pages
 
 import (
-	"fmt"
 	"strings"
 
 	"flowlog-desktop/internal/app"
 	design "flowlog-desktop/internal/design"
+	"flowlog-desktop/internal/lang"
 	"flowlog-desktop/internal/model"
 
 	"github.com/egoist/mygo/ui"
@@ -22,7 +22,7 @@ func Study(c *ui.Context, a *app.App) {
 	p := design.PaletteOf(c)
 	a.FilterDays()
 
-	subtitle := fmt.Sprintf("共 %d 天 · %d 条要点", a.DaysWritten(), a.TotalPoints())
+	subtitle := design.Tf("共 %d 天 · %d 条要点", a.DaysWritten(), a.TotalPoints())
 	if a.HasFilter() {
 		subtitle = a.FilterSummary()
 	}
@@ -85,7 +85,7 @@ func subjectSelect(c *ui.Context, a *app.App) {
 		return
 	}
 	options := make([]string, 0, len(subjects)+1)
-	options = append(options, allSubjects)
+	options = append(options, design.T(allSubjects))
 	for _, s := range subjects {
 		options = append(options, s.Name)
 	}
@@ -94,12 +94,12 @@ func subjectSelect(c *ui.Context, a *app.App) {
 	// 用户选中后由 OnChange 写回，避免直接绑派生值。
 	choice := a.SubjectFilter
 	if choice == "" {
-		choice = allSubjects
+		choice = design.T(allSubjects)
 	}
 	ui.Select(c.Key("study-subject"), &choice, options).
-		Label("按科目筛选").Width(168).Height(design.ControlHeight).Tooltip("只看某个科目").
+		Label(design.T("按科目筛选")).Width(168).Height(design.ControlHeight).Tooltip(design.T("只看某个科目")).
 		OnChange(func() {
-			if choice == allSubjects {
+			if choice == design.T(allSubjects) {
 				a.SubjectFilter = ""
 				return
 			}
@@ -110,7 +110,7 @@ func subjectSelect(c *ui.Context, a *app.App) {
 // searchField 是页头右侧的搜索框，⌘F 把焦点送进来。
 func searchField(c *ui.Context, a *app.App) {
 	f := ui.SearchField(c.Key("study-search"), &a.Query).
-		Placeholder("搜索科目、章节或要点").Label("搜索学记").Width(210).
+		Placeholder("搜索科目、章节或要点").Label(design.T("搜索学记")).Width(210).
 		Height(design.ControlHeight)
 	if a.FocusSearch {
 		f.Focus()
@@ -153,9 +153,9 @@ func dayCard(c *ui.Context, a *app.App, di int) {
 				design.Chip(c, rel, design.TonePrimary)
 			}
 			if points > 0 {
-				text := plural(points, "条要点")
+				text := lang.Format("%d 条要点", points)
 				if done := day.DonePoints(); done > 0 {
-					text += " · 已复习 " + fmt.Sprint(done)
+					text += lang.Format(" · 已复习 %d", done)
 				}
 				ui.Text(c, text).FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant)
 			}
@@ -168,7 +168,7 @@ func dayCard(c *ui.Context, a *app.App, di int) {
 		})
 
 		if len(day.Entries) == 0 {
-			ui.Text(c, "这一天还没有记录").FontSize(design.FontBody).
+			design.Text(c, "这一天还没有记录").FontSize(design.FontBody).
 				TextColor(p.OnSurfaceVariant).Padding(2, 0)
 			return
 		}
@@ -257,7 +257,7 @@ func pointRow(c *ui.Context, a *app.App, di, ei, pi int) {
 	ui.Row(c).Gap(10).AlignItems(ui.Start).Children(func() {
 		cb := design.Checkbox(c, "pt-"+pt.ID, &pt.Done, pt.Text).
 			Margin(design.CheckboxOffset(), 0, 0, 0)
-		cb.Tooltip("标记为已复习")
+		cb.Tooltip(design.T("标记为已复习"))
 		cb.OnChange(func() { a.Persist(date) })
 
 		color := p.OnSurface

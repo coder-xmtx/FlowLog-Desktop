@@ -1,9 +1,10 @@
 package design
 
 import (
-	"fmt"
+	"strconv"
 	"strings"
 
+	"flowlog-desktop/internal/lang"
 	"flowlog-desktop/internal/model"
 
 	"github.com/egoist/mygo/plugins/loading"
@@ -44,10 +45,10 @@ func PageHeader(c *ui.Context, title, subtitle string, actions func()) ui.Elemen
 
 	titleBlock := func() {
 		ui.Column(c).Gap(4).Grow(1).MinWidth(0).Children(func() {
-			ui.Text(c, title).FontSize(FontTitle).FontWeight(600).LetterSpacing(-0.3).
+			Text(c, title).FontSize(FontTitle).FontWeight(600).LetterSpacing(-0.3).
 				SingleLine().TextColor(p.OnSurface)
 			if subtitle != "" {
-				ui.Text(c, subtitle).FontSize(FontBody).TextColor(p.OnSurfaceVariant).SingleLine()
+				Text(c, subtitle).FontSize(FontBody).TextColor(p.OnSurfaceVariant).SingleLine()
 			}
 		})
 	}
@@ -74,9 +75,9 @@ func SectionCard(c *ui.Context, title, hint string, body func()) ui.Element {
 	p := PaletteOf(c)
 	return Card(c, func() {
 		ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-			ui.Text(c, title).FontSize(FontLead).FontWeight(600).TextColor(p.OnSurface)
+			Text(c, title).FontSize(FontLead).FontWeight(600).TextColor(p.OnSurface)
 			if hint != "" {
-				ui.Text(c, hint).FontSize(FontCaption).TextColor(p.OnSurfaceVariant)
+				Text(c, hint).FontSize(FontCaption).TextColor(p.OnSurfaceVariant)
 			}
 		})
 		body()
@@ -104,8 +105,8 @@ func Dialog(c *ui.Context, open *bool, body func()) ui.Element {
 func Confirm(c *ui.Context, open *bool, title, message, yes string, onYes func()) ui.Element {
 	p := PaletteOf(c)
 	return Dialog(c, open, func() {
-		ui.Text(c, title).FontSize(FontHeading).FontWeight(600).TextColor(p.OnSurface)
-		ui.Text(c, message).FontSize(FontBody).TextColor(p.OnSurfaceVariant).LineHeight(1.55)
+		Text(c, title).FontSize(FontHeading).FontWeight(600).TextColor(p.OnSurface)
+		Text(c, message).FontSize(FontBody).TextColor(p.OnSurfaceVariant).LineHeight(1.55)
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(4, 0, 0).Children(func() {
 			ui.Spacer(c)
 			TextButton(c, "confirm-cancel", "取消", func() { *open = false })
@@ -149,7 +150,7 @@ func Chip(c *ui.Context, text string, tone Tone) ui.Element {
 	bg, fg := chipColors(p, tone)
 	return ui.Row(c).Padding(3, 10).Radius(RadiusXS).Background(bg).
 		AlignItems(ui.Center).Shrink(0).Children(func() {
-		ui.Text(c, text).FontSize(FontCaption).FontWeight(500).TextColor(fg).SingleLine()
+		Text(c, text).FontSize(FontCaption).FontWeight(500).TextColor(fg).SingleLine()
 	})
 }
 
@@ -180,9 +181,9 @@ func EmptyState(c *ui.Context, icon *ui.SVG, title, desc, action string, on func
 			Center().Children(func() {
 			ui.Icon(c, icon).FontSize(24).TextColor(p.OnSurfaceVariant)
 		})
-		ui.Text(c, title).FontSize(FontLead).FontWeight(600).TextColor(p.OnSurface)
+		Text(c, title).FontSize(FontLead).FontWeight(600).TextColor(p.OnSurface)
 		if desc != "" {
-			ui.Text(c, desc).FontSize(FontBody).TextColor(p.OnSurfaceVariant).
+			Text(c, desc).FontSize(FontBody).TextColor(p.OnSurfaceVariant).
 				TextAlign(ui.Center).MaxWidth(380).LineHeight(1.5)
 		}
 		if action != "" && on != nil {
@@ -206,7 +207,7 @@ const (
 // 参数 key 是它在当前列表里的稳定身份，checked 是绑定状态，
 // label 是给读屏与自动化用、界面上不显示的文字。
 func Checkbox(c *ui.Context, key any, checked *bool, label string) ui.Element {
-	return ui.Checkbox(c.Key(key), checked, "").Label(label).
+	return ui.Checkbox(c.Key(key), checked, "").Label(T(label)).
 		Translate(0, checkboxNudge)
 }
 
@@ -219,7 +220,7 @@ func CheckboxOffset() float32 { return pointCheckboxOffset }
 // 悬停时浮现一层强调色的 state layer，带 150ms 过渡。
 func IconButton(c *ui.Context, key any, label string, icon *ui.SVG, on func()) ui.Element {
 	p := PaletteOf(c)
-	b := ui.ButtonBase(c.Key(key)).Label(label).Tooltip(label).
+	b := ui.ButtonBase(c.Key(key)).Label(T(label)).Tooltip(T(label)).
 		Width(36).Height(36).Radius(18).Center().Shrink(0)
 	hovered := b.Hovered()
 	b.Children(func() {
@@ -234,14 +235,14 @@ func IconButton(c *ui.Context, key any, label string, icon *ui.SVG, on func()) u
 // 参数 key 是稳定身份，label 是文字，icon 可为 nil，on 是点击动作。
 func FilledButton(c *ui.Context, key any, label string, icon *ui.SVG, on func()) ui.Element {
 	p := PaletteOf(c)
-	b := ui.ButtonBase(c.Key(key)).Label(label).Height(40).Padding(0, 20).
+	b := ui.ButtonBase(c.Key(key)).Label(T(label)).Height(40).Padding(0, 20).
 		Radius(RadiusFull).Gap(8).Shrink(0)
 	hovered := b.Hovered()
 	b.Children(func() {
 		if icon != nil {
 			ui.Icon(c, icon).FontSize(FontLead).TextColor(p.OnPrimary)
 		}
-		ui.Text(c, label).FontSize(FontBody).FontWeight(600).TextColor(p.OnPrimary).SingleLine()
+		Text(c, label).FontSize(FontBody).FontWeight(600).TextColor(p.OnPrimary).SingleLine()
 	})
 	bg := p.Primary
 	if hovered {
@@ -256,14 +257,14 @@ func FilledButton(c *ui.Context, key any, label string, icon *ui.SVG, on func())
 // 参数含义同 FilledButton。
 func TonalButton(c *ui.Context, key any, label string, icon *ui.SVG, on func()) ui.Element {
 	p := PaletteOf(c)
-	b := ui.ButtonBase(c.Key(key)).Label(label).Height(40).Padding(0, 18).
+	b := ui.ButtonBase(c.Key(key)).Label(T(label)).Height(40).Padding(0, 18).
 		Radius(RadiusFull).Gap(8).Shrink(0)
 	hovered := b.Hovered()
 	b.Children(func() {
 		if icon != nil {
 			ui.Icon(c, icon).FontSize(FontLead).TextColor(p.OnSecondaryContainer)
 		}
-		ui.Text(c, label).FontSize(FontBody).FontWeight(600).TextColor(p.OnSecondaryContainer).
+		Text(c, label).FontSize(FontBody).FontWeight(600).TextColor(p.OnSecondaryContainer).
 			SingleLine()
 	})
 	bg := p.SecondaryContainer
@@ -277,11 +278,11 @@ func TonalButton(c *ui.Context, key any, label string, icon *ui.SVG, on func()) 
 // TextButton 是 MD3 的文字按钮：无底色，只有文字与 hover 的 state layer。
 func TextButton(c *ui.Context, key any, label string, on func()) ui.Element {
 	p := PaletteOf(c)
-	b := ui.ButtonBase(c.Key(key)).Label(label).Height(36).Padding(0, 14).
+	b := ui.ButtonBase(c.Key(key)).Label(T(label)).Height(36).Padding(0, 14).
 		Radius(RadiusFull).Shrink(0)
 	hovered := b.Hovered()
 	b.Children(func() {
-		ui.Text(c, label).FontSize(FontSmall).FontWeight(600).TextColor(p.Primary).SingleLine()
+		Text(c, label).FontSize(FontSmall).FontWeight(600).TextColor(p.Primary).SingleLine()
 	})
 	b.Background(HoverLayer(b, "hover", p.Primary, hovered))
 	return b.OnClick(on)
@@ -322,7 +323,7 @@ func IconSegmented(c *ui.Context, key any, choice *int, width float32, opts ...S
 				if opt.Icon != nil {
 					ui.Icon(c, opt.Icon).FontSize(FontLead).TextColor(fg)
 				}
-				ui.Text(c, opt.Label).FontSize(FontSmall).
+				Text(c, opt.Label).FontSize(FontSmall).
 					FontWeight(500).TextColor(fg).SingleLine()
 			})
 			if selected {
@@ -342,11 +343,11 @@ func IconSegmented(c *ui.Context, key any, choice *int, width float32, opts ...S
 // 参数 key 是稳定身份，label 是文字，on 是点击动作。
 func MenuButton(c *ui.Context, key any, label string, on func()) ui.Element {
 	p := PaletteOf(c)
-	b := ui.ButtonBase(c.Key(key)).Label(label).Height(36).Padding(0, 10).
+	b := ui.ButtonBase(c.Key(key)).Label(T(label)).Height(36).Padding(0, 10).
 		Radius(RadiusXS).Shrink(0)
 	hovered := b.Hovered()
 	b.Children(func() {
-		ui.Text(c, label).FontSize(FontBody).TextColor(p.OnSurface).Grow(1).SingleLine()
+		Text(c, label).FontSize(FontBody).TextColor(p.OnSurface).Grow(1).SingleLine()
 	})
 	b.Background(HoverLayer(b, "hover", p.OnSurface, hovered))
 	return b.OnClick(on)
@@ -355,11 +356,11 @@ func MenuButton(c *ui.Context, key any, label string, on func()) ui.Element {
 // DangerTextButton 是红色的文字按钮，用于「删除」这类破坏性动作。
 func DangerTextButton(c *ui.Context, key any, label string, on func()) ui.Element {
 	p := PaletteOf(c)
-	b := ui.ButtonBase(c.Key(key)).Label(label).Height(36).Padding(0, 14).
+	b := ui.ButtonBase(c.Key(key)).Label(T(label)).Height(36).Padding(0, 14).
 		Radius(RadiusFull).Shrink(0)
 	hovered := b.Hovered()
 	b.Children(func() {
-		ui.Text(c, label).FontSize(FontSmall).FontWeight(600).TextColor(p.Error).SingleLine()
+		Text(c, label).FontSize(FontSmall).FontWeight(600).TextColor(p.Error).SingleLine()
 	})
 	b.Background(HoverLayer(b, "hover", p.Error, hovered))
 	return b.OnClick(on)
@@ -368,14 +369,14 @@ func DangerTextButton(c *ui.Context, key any, label string, on func()) ui.Elemen
 // OutlinedButton 是 MD3 的描边按钮，用于次要但需要边框的动作。
 func OutlinedButton(c *ui.Context, key any, label string, icon *ui.SVG, on func()) ui.Element {
 	p := PaletteOf(c)
-	b := ui.ButtonBase(c.Key(key)).Label(label).Height(40).Padding(0, 18).
+	b := ui.ButtonBase(c.Key(key)).Label(T(label)).Height(40).Padding(0, 18).
 		Radius(RadiusFull).Gap(8).Shrink(0).Border(1, p.Outline)
 	hovered := b.Hovered()
 	b.Children(func() {
 		if icon != nil {
 			ui.Icon(c, icon).FontSize(FontLead).TextColor(p.Primary)
 		}
-		ui.Text(c, label).FontSize(FontBody).FontWeight(600).TextColor(p.Primary).SingleLine()
+		Text(c, label).FontSize(FontBody).FontWeight(600).TextColor(p.Primary).SingleLine()
 	})
 	b.Background(HoverLayer(b, "hover", p.Primary, hovered))
 	return b.OnClick(on)
@@ -387,7 +388,7 @@ func OutlinedButton(c *ui.Context, key any, label string, icon *ui.SVG, on func(
 func KVRow(c *ui.Context, label string, value func()) ui.Element {
 	p := PaletteOf(c)
 	return ui.Row(c).AlignItems(ui.Center).Gap(16).Padding(8, 0).Children(func() {
-		ui.Text(c, label).FontSize(FontBody).TextColor(p.OnSurfaceVariant).Width(96).Shrink(0)
+		Text(c, label).FontSize(FontBody).TextColor(p.OnSurfaceVariant).Width(96).Shrink(0)
 		value()
 	})
 }
@@ -398,11 +399,11 @@ func FormatMinutes(m int) string {
 	case m <= 0:
 		return ""
 	case m < 60:
-		return fmt.Sprintf("%d 分钟", m)
+		return lang.Format("%d 分钟", m)
 	case m%60 == 0:
-		return fmt.Sprintf("%d 小时", m/60)
+		return lang.Format("%d 小时", m/60)
 	default:
-		return fmt.Sprintf("%d 小时 %d 分", m/60, m%60)
+		return lang.Format("%d 小时 %d 分", m/60, m%60)
 	}
 }
 
@@ -428,7 +429,89 @@ func BusyButton(c *ui.Context, label string) ui.Element {
 		Gap(8).AlignItems(ui.Center).Shrink(0).Border(1, p.OutlineVariant).
 		Children(func() {
 			loading.Arc(c, loading.Options{Size: 16, Color: p.Primary})
-			ui.Text(c, label).FontSize(FontBody).FontWeight(600).
+			Text(c, label).FontSize(FontBody).FontWeight(600).
 				TextColor(p.OnSurfaceVariant).SingleLine()
 		})
+}
+
+// NumberField 是圆形的数字步进器：左边「−」、中间可以直接输入的数字、右边「+」。
+//
+// 参数 key 是稳定身份，value 绑定数值，lo / hi 是范围，step 是步长，
+// width 是中间输入框的宽度。数字变化后调用 onChange（可以为 nil）。
+// 三个控件同高（ControlHeight），加减按钮是正圆，和数字框对齐。
+func NumberField(c *ui.Context, key string, value *float64, lo, hi, step float64, width float32, onChange func()) ui.Element {
+	p := PaletteOf(c)
+	row := ui.Row(c.Key(key)).Height(ControlHeight).AlignItems(ui.Center).Gap(8).Shrink(0)
+
+	decimals := 0
+	if s := strconv.FormatFloat(float64(step), 'f', -1, 64); strings.Contains(s, ".") {
+		decimals = len(s) - strings.IndexByte(s, '.') - 1
+	}
+	format := func(v float64) string {
+		return strconv.FormatFloat(v, 'f', decimals, 64)
+	}
+	set := func(v float64) {
+		if v < lo {
+			v = lo
+		}
+		if v > hi {
+			v = hi
+		}
+		if v == *value {
+			return
+		}
+		*value = v
+		if onChange != nil {
+			onChange()
+		}
+	}
+
+	text := ui.Local(row, "text", func() string { return format(*value) })
+	row.Children(func() {
+		stepButton(c, p, key+"-minus", IconMinus, T("减小"), *value <= lo, func() {
+			set(*value - step)
+			*text = format(*value)
+		})
+		in := ui.TextInput(c.Key(key+"-input"), text).Width(width).Height(ControlHeight).
+			Label(key).Shrink(0)
+		in.OnChange(func() {
+			if v, err := strconv.ParseFloat(strings.TrimSpace(*text), 64); err == nil && v >= lo && v <= hi {
+				set(v)
+			}
+		})
+		if !in.Focused() {
+			*text = format(*value)
+		}
+		stepButton(c, p, key+"-plus", IconPlus, T("增大"), *value >= hi, func() {
+			set(*value + step)
+			*text = format(*value)
+		})
+	})
+	return row
+}
+
+// stepButton 是步进器两侧的圆形按钮。
+func stepButton(c *ui.Context, p Palette, key string, icon *ui.SVG, label string, disabled bool, on func()) {
+	b := ui.ButtonBase(c.Key(key)).Label(T(label)).Tooltip(T(label)).
+		Width(ControlHeight).Height(ControlHeight).Radius(RadiusFull).Center().Shrink(0)
+	hovered := b.Hovered() && !disabled
+	bg := p.SurfaceContainerHigh
+	if hovered {
+		bg = p.SurfaceContainerHighest
+	}
+	b.Children(func() {
+		ui.Icon(c, icon).FontSize(FontBody).TextColor(p.OnSurfaceVariant)
+	})
+	b.Background(b.AnimateColor("bg", bg, MotionState))
+	b.Disabled(disabled)
+	b.Opacity(boolFloat(!disabled))
+	b.OnClick(on)
+}
+
+// boolFloat 把布尔转成 0 / 1，给动画和透明度用。
+func boolFloat(b bool) float32 {
+	if b {
+		return 1
+	}
+	return 0
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"flowlog-desktop/internal/app"
+	"flowlog-desktop/internal/lang"
 	"flowlog-desktop/internal/model"
 	"flowlog-desktop/internal/store"
 
@@ -215,6 +216,20 @@ func TestPreview(t *testing.T) {
 	render(t, dir, "study-narrow", a, 900, 620)
 
 	// 高窗口：整页设置
+	// 英文界面
+	lang.Set(lang.English)
+	for _, p := range []struct{ path, name string }{
+		{"/", "en-home"},
+		{"/study", "en-study"},
+		{"/notes", "en-notes"},
+		{"/todo", "en-todo"},
+		{"/settings", "en-settings"},
+	} {
+		a.Router.Replace(p.path)
+		render(t, dir, p.name, a, 1200, 1400)
+	}
+	lang.Set(lang.Chinese)
+
 	a.Router.Push("/settings")
 	render(t, dir, "settings-tall", a, 1100, 1500)
 

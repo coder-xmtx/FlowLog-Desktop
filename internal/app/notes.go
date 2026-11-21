@@ -1,6 +1,7 @@
 package app
 
 import (
+	"flowlog-desktop/internal/lang"
 	"strings"
 	"time"
 
@@ -77,7 +78,7 @@ func (a *App) SaveNoteEditor() {
 	}
 	a.sortNotes()
 	a.NoteEditor.Open = false
-	a.Toast("已保存", "随笔 · "+model.DisplayDate(date))
+	a.Toast(lang.T("已保存"), lang.Format("随笔 · %s", model.DisplayDate(date)))
 }
 
 // noteIndex 返回某条随笔在 Notes 里的下标。
@@ -115,7 +116,7 @@ func (a *App) AskDeleteNote(id string) {
 	a.Confirm = ConfirmState{
 		Open:    true,
 		Title:   "删除这条随笔？",
-		Message: "「" + text + "」，删除后无法恢复。",
+		Message: lang.Format("「%s」，删除后无法恢复。", text),
 		Yes:     "删除",
 		YesFunc: func() { a.DeleteNote(id) },
 	}

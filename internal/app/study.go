@@ -1,6 +1,7 @@
 package app
 
 import (
+	"flowlog-desktop/internal/lang"
 	"fmt"
 	"sort"
 	"strings"
@@ -47,11 +48,11 @@ func (a *App) FilterSummary() string {
 	q := strings.TrimSpace(a.Query)
 	switch {
 	case a.SubjectFilter != "" && q != "":
-		return fmt.Sprintf("%s ·「%s」· %d 天 · %d 条要点", a.SubjectFilter, q, len(a.Filtered), points)
+		return lang.Format("%s ·「%s」· %d 天 · %d 条要点", a.SubjectFilter, q, len(a.Filtered), points)
 	case a.SubjectFilter != "":
-		return fmt.Sprintf("%s · %d 天 · %d 条要点", a.SubjectFilter, len(a.Filtered), points)
+		return lang.Format("%s · %d 天 · %d 条要点", a.SubjectFilter, len(a.Filtered), points)
 	default:
-		return fmt.Sprintf("「%s」· %d 天 · %d 条要点", q, len(a.Filtered), points)
+		return lang.Format("「%s」· %d 天 · %d 条要点", q, len(a.Filtered), points)
 	}
 }
 
@@ -259,7 +260,7 @@ func (a *App) SaveEditor() {
 		a.Days[di].Entries = append(a.Days[di].Entries, entry)
 		a.Persist(date)
 		a.Editor.Open = false
-		a.Toast("已记录", subject+" · "+plural(len(points), "条要点"))
+		a.Toast(lang.T("已记录"), lang.Format("%s · %d 条要点", subject, len(points)))
 		return
 	}
 
@@ -283,7 +284,7 @@ func (a *App) SaveEditor() {
 	a.Days[di].Entries[j] = entry
 	a.Persist(date)
 	a.Editor.Open = false
-	a.Toast("已更新", subject+" · "+plural(len(entry.Points), "条要点"))
+	a.Toast(lang.T("已更新"), lang.Format("%s · %d 条要点", subject, len(entry.Points)))
 }
 
 // ParsePoints 把多行文本拆成要点，顺手去掉 Markdown 的列表符号。
@@ -316,7 +317,7 @@ func (a *App) AskDeleteEntry(date, entryID string) {
 	a.Confirm = ConfirmState{
 		Open:    true,
 		Title:   "删除这条记录？",
-		Message: e.Subject + " · " + plural(len(e.Points), "条要点") + "，删除后无法恢复。",
+		Message: lang.Format("%s · %d 条要点，删除后无法恢复。", e.Subject, len(e.Points)),
 		Yes:     "删除",
 		YesFunc: func() { a.DeleteEntry(date, entryID) },
 	}
@@ -327,8 +328,8 @@ func (a *App) AskDeleteDay(date string) {
 	day := a.Day(date)
 	a.Confirm = ConfirmState{
 		Open:    true,
-		Title:   "删除 " + model.DisplayDate(date) + " 的全部记录？",
-		Message: plural(len(day.Entries), "条学习记录") + "，删除后无法恢复。",
+		Title:   lang.Format("删除 %s 的全部记录？", model.DisplayDate(date)),
+		Message: lang.Format("%d 条学习记录，删除后无法恢复。", len(day.Entries)),
 		Yes:     "删除",
 		YesFunc: func() { a.DeleteDay(date) },
 	}
@@ -349,7 +350,7 @@ func (a *App) DeleteEntry(date, entryID string) {
 	a.Days[di].Entries = append(a.Days[di].Entries[:j], a.Days[di].Entries[j+1:]...)
 	a.Persist(date)
 
-	a.ToastUndo("已删除「"+removed.Subject+"」", "撤销", func() {
+	a.ToastUndo(lang.Format("已删除「%s」", removed.Subject), lang.T("撤销"), func() {
 		k := a.DayIndex(date)
 		if k < 0 {
 			a.Upsert(model.Day{Date: date, Entries: []model.Entry{}})
@@ -380,7 +381,7 @@ func (a *App) DeleteDay(date string) {
 	a.Days[di].Entries = []model.Entry{}
 	a.Persist(date)
 
-	a.ToastUndo("已清空 "+model.DisplayDate(date), "撤销", func() {
+	a.ToastUndo(lang.Format("已清空 %s", model.DisplayDate(date)), lang.T("撤销"), func() {
 		a.Upsert(backup)
 		a.Persist(date)
 	})

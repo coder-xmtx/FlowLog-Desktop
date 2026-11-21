@@ -36,8 +36,8 @@ The UI follows a Material Design 3-like style: primary colors, container levels,
 | Journal   | A reverse-chronological list of daily journal notes—the things you really want to write down each day. Supports search, edit, and delete; independent of Study Log                                                             |
 | Todos     | All todos in one list; optional due date per item; sorted by due date; supports checking, copying, deleting (undoable), and filtering by status                                                                                |
 | Sidebar   | Number of entries today and remaining todos; the month calendar marks days with entries; click a day to jump to that day's Study Log                                                                                           |
-| Settings  | Display name, appearance (with icons), data backup and restore, auto backup, keyboard shortcuts, about, and version updates                                                                                                    |
-| Window    | Custom title bar: minimize / maximize / close at the top right; the whole bar is draggable; double-click to maximize                                                                                                           |
+| Settings  | Name, Appearance (with icons), Interface Language (Chinese / English), Data Backup and Restore, Automatic Backup, Shortcuts, About and Version Updates                                                                         |
+| Window    | Custom Title Bar: Current time on the left, Minimize / Maximize / Close on the top right; whole bar draggable, double-click to maximize                                                                                        |
 
 ## ◈ Screenshots
 

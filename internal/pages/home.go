@@ -10,6 +10,7 @@ import (
 
 	"flowlog-desktop/internal/app"
 	design "flowlog-desktop/internal/design"
+	"flowlog-desktop/internal/lang"
 	"flowlog-desktop/internal/model"
 
 	"github.com/egoist/mygo/ui"
@@ -75,9 +76,9 @@ func Home(c *ui.Context, a *app.App) {
 
 	ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 		ui.Column(c).Padding(32, 32, 10).Gap(2).Children(func() {
-			ui.Text(c, greeting(a, c.Now().Hour())).FontSize(design.FontDisplay).
+			design.Text(c, greeting(a, c.Now().Hour())).FontSize(design.FontDisplay).
 				FontWeight(600).LetterSpacing(-0.6).SingleLine().TextColor(p.OnSurface)
-			ui.Text(c, model.DisplayDateFull(a.Today)+" · "+model.Weekday(date)).
+			design.Text(c, model.DisplayDateFull(a.Today)+" · "+model.Weekday(date)).
 				FontSize(design.FontBody).TextColor(p.OnSurfaceVariant).SingleLine()
 		})
 
@@ -85,9 +86,9 @@ func Home(c *ui.Context, a *app.App) {
 			hero(c, a, QuoteOf(a.Today))
 
 			ui.Row(c).Gap(14).Children(func() {
-				statCard(c, design.IconSparkle, "连续记录", plural(a.Streak(), "天"))
-				statCard(c, design.IconBook, "累计记录", plural(a.DaysWritten(), "天"))
-				statCard(c, design.IconCheckCircle, "今日要点", plural(today.PointCount(), "条"))
+				statCard(c, design.IconSparkle, "连续记录", statValue(a.Streak(), "天"))
+				statCard(c, design.IconBook, "累计记录", statValue(a.DaysWritten(), "天"))
+				statCard(c, design.IconCheckCircle, "今日要点", statValue(today.PointCount(), "条"))
 			})
 
 			ui.Row(c).Gap(16).AlignItems(ui.Stretch).Children(func() {
@@ -105,9 +106,9 @@ func Home(c *ui.Context, a *app.App) {
 // greeting 给问候语加上称呼。
 func greeting(a *app.App, hour int) string {
 	if name := a.GreetingName(); name != "" {
-		return greetingByHour(hour) + "，" + name
+		return lang.T(greetingByHour(hour)) + lang.Separator() + name
 	}
-	return greetingByHour(hour)
+	return lang.T(greetingByHour(hour))
 }
 
 // hero 是首页顶部的大卡片：必应每日一图；图没到或取不到时用品牌渐变兜底。
@@ -122,7 +123,7 @@ func hero(c *ui.Context, a *app.App, quote string) {
 				Fit(ui.Cover).ZIndex(-3)
 			ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).ZIndex(-2).
 				Gradient(ui.Transparent, ui.RGBA(4, 8, 30, 0.74), 178)
-			heroContent(c, quote, "Bing 每日一图 · "+a.BGCopyright, true)
+			heroContent(c, quote, lang.Format("Bing 每日一图 · %s", a.BGCopyright), true)
 		})
 		return
 	}
@@ -134,7 +135,7 @@ func hero(c *ui.Context, a *app.App, quote string) {
 	box.Children(func() {
 		credit := ""
 		if a.BGLoading {
-			credit = "正在加载今日图片…"
+			credit = lang.T("正在加载今日图片…")
 		}
 		heroContent(c, quote, credit, false)
 	})
@@ -154,10 +155,10 @@ func heroContent(c *ui.Context, quote, credit string, onImage bool) {
 	ui.Column(c).Fill().Justify(ui.End).Padding(26, 28).Gap(10).Children(func() {
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, design.IconSparkle).FontSize(design.FontSmall).TextColor(labelColor)
-			ui.Text(c, "今日寄语").FontSize(design.FontCaption).FontWeight(600).
+			design.Text(c, "今日寄语").FontSize(design.FontCaption).FontWeight(600).
 				LetterSpacing(1.2).TextColor(labelColor)
 		})
-		ui.Text(c, quote).FontSize(design.FontHero).FontWeight(600).
+		design.Text(c, quote).FontSize(design.FontHero).FontWeight(600).
 			LineHeight(1.4).TextColor(quoteColor).MaxWidth(680)
 		if credit != "" {
 			ui.Text(c, credit).FontSize(design.FontTiny).TextColor(creditColor).
@@ -178,10 +179,10 @@ func statCard(c *ui.Context, icon *ui.SVG, label, value string) {
 					Children(func() {
 						ui.Icon(c, icon).FontSize(design.FontLead).TextColor(p.OnPrimaryContainer)
 					})
-				ui.Text(c, label).FontSize(design.FontCaption).FontWeight(500).
+				design.Text(c, label).FontSize(design.FontCaption).FontWeight(500).
 					TextColor(p.OnSurfaceVariant).SingleLine()
 			})
-			ui.Text(c, value).FontSize(design.FontHero).FontWeight(600).
+			design.Text(c, value).FontSize(design.FontHero).FontWeight(600).
 				TextColor(p.OnSurface).SingleLine().FontFeatures("lnum")
 		})
 }
@@ -225,7 +226,7 @@ func todayLearning(c *ui.Context, a *app.App, today model.Day) ui.Element {
 		}
 
 		if extra := len(today.Entries) - max; extra > 0 {
-			ui.Textf(c, "另有 %d 条记录", extra).FontSize(design.FontCaption).
+			design.Textf(c, "另有 %d 条记录", extra).FontSize(design.FontCaption).
 				TextColor(p.OnSurfaceVariant)
 		}
 
@@ -244,7 +245,7 @@ func dueCard(c *ui.Context, a *app.App) ui.Element {
 
 	return design.SectionCard(c, "待办提醒", "", func() {
 		if len(due) == 0 {
-			ui.Text(c, "近两天没有到期的待办").FontSize(design.FontBody).
+			design.Text(c, "近两天没有到期的待办").FontSize(design.FontBody).
 				TextColor(p.OnSurfaceVariant)
 			ui.Row(c).Children(func() {
 				design.TonalButton(c, "goto-todo", "查看待办", nil, func() { a.Router.Push("/todo") })
@@ -260,11 +261,11 @@ func dueCard(c *ui.Context, a *app.App) ui.Element {
 		}
 
 		if extra := len(due) - 4; extra > 0 {
-			ui.Textf(c, "另有 %d 条", extra).FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant)
+			design.Textf(c, "另有 %d 条", extra).FontSize(design.FontCaption).TextColor(p.OnSurfaceVariant)
 		}
 
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Textf(c, "%d 条待处理", len(due)).FontSize(design.FontCaption).
+			design.Textf(c, "%d 条待处理", len(due)).FontSize(design.FontCaption).
 				TextColor(p.OnSurfaceVariant)
 			ui.Spacer(c)
 			design.TextButton(c, "all-todos", "全部待办", func() { a.Router.Push("/todo") })
@@ -318,3 +319,22 @@ func cardSurface(c *ui.Context) ui.Color {
 
 // plural 返回「3 条」这样的数量词。
 func plural(n int, unit string) string { return strconv.Itoa(n) + " " + unit }
+
+// statValue 把「数字 + 量词」写成当前语言的写法：中文「3 天」，英文 "3 days"。
+func statValue(n int, unit string) string {
+	if lang.IsEnglish() {
+		switch unit {
+		case "天":
+			if n == 1 {
+				return "1 day"
+			}
+			return strconv.Itoa(n) + " days"
+		case "条":
+			if n == 1 {
+				return "1 entry"
+			}
+			return strconv.Itoa(n) + " entries"
+		}
+	}
+	return plural(n, unit)
+}

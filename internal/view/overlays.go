@@ -35,9 +35,9 @@ func OnboardingDialog(c *ui.Context, a *app.App) {
 	design.Dialog(c, &a.Onboarding.Open, func() {
 		ui.Column(c).Width(420).Gap(16).Children(func() {
 			ui.Column(c).Gap(6).Children(func() {
-				ui.Text(c, "先认识一下").FontSize(design.FontHero).FontWeight(600).
+				design.Text(c, "先认识一下").FontSize(design.FontHero).FontWeight(600).
 					TextColor(p.OnSurface)
-				ui.Text(c, "留下一个称呼，首页会用它问候你，之后可以在设置里修改").
+				design.Text(c, "留下一个称呼，首页会用它问候你，之后可以在设置里修改").
 					FontSize(design.FontBody).TextColor(p.OnSurfaceVariant).LineHeight(1.6)
 			})
 
@@ -53,7 +53,7 @@ func OnboardingDialog(c *ui.Context, a *app.App) {
 			})
 
 			if a.Onboarding.Err != "" {
-				ui.Text(c, a.Onboarding.Err).FontSize(design.FontSmall).TextColor(p.Error)
+				design.Text(c, a.Onboarding.Err).FontSize(design.FontSmall).TextColor(p.Error)
 			}
 
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
