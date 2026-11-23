@@ -4,16 +4,24 @@
 
 <h1 align="center">流记 · FlowLog</h1>
 
-<p align="center">一个记录每日学习情况的桌面应用：按科目、章节与要点组织学记，附带当天待办。</p>
+<p align="center">⌈ 把每天的学习和思考，都记录成一条清晰的流 ⌋</p>
+
+<p align="center">一个记录每日学习情况的桌面应用：按科目、章节与要点组织学记，以及简单记录随笔和待办</p>
 
 <p align="center">
   <a href="README.md">简体中文</a> ·
   <a href="README-en.md">English</a>
 </p>
 
-<p align="center">开发者还只是个大学生，该项目仅作为本地小工具，如有不满，请见谅。</p>
+<p align="center">开发者只是个大学生，该项目仅作为本地小工具使用，如有不满，还请见谅</p>
 
-<p align="center">使用 DeepSeek Harness 配合 DeepSeek V4.1 Flash 模型开发。</p>
+<p align="center">使用 DeepSeek Harness 配合 DeepSeek V4.1 Flash 模型开发</p>
+
+<p align="center">
+  <a href="https://awesomemygo.dev/apps/flowlog">
+    <img src="https://awesomemygo.dev/badge.svg" alt="Listed on Awesome MyGo">
+  </a>
+</p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/MyGo-v0.10.0-4C5BD4" alt="MyGo v0.10.0">
@@ -23,9 +31,9 @@
   <img src="https://img.shields.io/badge/Agent-DeepSeek_Harness-blue?logo=deepseek" alt="Agent DeepSeek Harness">
 </p>
 
-流记使用 [MyGo](https://mygo.run) 的原生 UI 模式编写：界面由 Go 代码描述，由 MyGo 在 GPU 上绘制，不加载 WebView，也没有 HTML、JavaScript 与前端构建步骤。
+流记使用 [MyGo](https://mygo.run) 的原生 UI 模式编写：界面由 Go 代码描述，由 MyGo 在 GPU 上绘制，不加载 WebView 。
 
-界面采用类 Material Design 3 风格：主色、容器层级、圆角与动效都按 MD3 的角色划分。
+UI 界面采用类 Material Design 3 风格：主色、容器层级、圆角与动效都按 MD3 的角色划分。
 
 ## ◈ 功能
 
@@ -36,30 +44,26 @@
 | 随笔   | 按日期倒序的一列随笔，记录每天真正想写下的东西；支持搜索、编辑与删除，和学记互不影响                                         |
 | 待办   | 全部待办列表；可为每条设置截止日期，按截止日期排序；支持勾选、复制、删除（可撤销）、按状态筛选                               |
 | 侧边栏 | 今天记录了多少条、还有多少待办；月历中标出有记录的日子，点一天直接跳到那一天的学记                                           |
-| 设置   | 称呼、外观（带图标）、界面语言（中文 / English）、数据备份与恢复、自动备份、快捷键、关于与版本更新                           |
+| 设置   | 称呼、明暗模式、界面语言（中文 / English）、数据备份与恢复、自动备份、快捷键、关于与版本更新                                 |
 | 窗口   | 自绘标题栏：左侧当前时间，右上角最小化 / 最大化 / 关闭；整条可拖动，双击最大化                                               |
 
 ## ◈ 截图
 
-| 首页 · 深色（默认）                | 首页 · 浅色                                  |
-| ---------------------------------- | -------------------------------------------- |
-| ![首页](docs/screenshots/home.png) | ![首页浅色](docs/screenshots/home-light.png) |
+| 首页 · 深色（默认）                    | 首页 · 浅色                                 |
+| -------------------------------------- | ------------------------------------------- |
+| ![首页](docs/showPNG/zh/home-dark.png) | ![首页浅色](docs/showPNG/zh/home-light.png) |
 
-| 学记                                | 学记 · 浅色                                   |
-| ----------------------------------- | --------------------------------------------- |
-| ![学记](docs/screenshots/study.png) | ![学记浅色](docs/screenshots/study-light.png) |
+| 学记                                    | 学记 · 浅色                                  |
+| --------------------------------------- | -------------------------------------------- |
+| ![学记](docs/showPNG/zh/study-dark.png) | ![学记浅色](docs/showPNG/zh/study-light.png) |
 
-| 随笔                                | 写随笔                                      |
-| ----------------------------------- | ------------------------------------------- |
-| ![随笔](docs/screenshots/notes.png) | ![写随笔](docs/screenshots/note-editor.png) |
+| 随笔                                      | 写学记                                          |
+| ----------------------------------------- | ----------------------------------------------- |
+| ![随笔](docs/showPNG/zh/journal-dark.png) | ![写学记](docs/showPNG/zh/study-write-dark.png) |
 
-| 待办                               | 设置                                   |
-| ---------------------------------- | -------------------------------------- |
-| ![待办](docs/screenshots/todo.png) | ![设置](docs/screenshots/settings.png) |
-
-| 搜索高亮                                       | 写学记                                 |
-| ---------------------------------------------- | -------------------------------------- |
-| ![搜索高亮](docs/screenshots/study-search.png) | ![写学记](docs/screenshots/editor.png) |
+| 待办                                   | 设置                                       |
+| -------------------------------------- | ------------------------------------------ |
+| ![待办](docs/showPNG/zh/todo-dark.png) | ![设置](docs/showPNG/zh/settings-dark.png) |
 
 ## ◈ 环境要求
 
@@ -174,9 +178,10 @@ docs/                    开发手记与界面截图
 
 页面只读状态、调动作；状态层不画界面；设计系统不认识业务。
 
+`docs`文件夹中，`showPNG` 文件夹用来在 README 中展示截图，`screenshots` 文件夹用来生成界面测试截图
+
 ## ◈ 已知限制
 
-- 界面文案为中文；内置控件（日历、数字输入）已随中文语言包显示。
 - 自动更新依赖 GitHub Releases，需要仓库公开或使用可访问的 HTTPS 地址。
 - 目前仅支持单窗口、本地单用户数据。
 
