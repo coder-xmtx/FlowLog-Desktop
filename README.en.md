@@ -10,8 +10,20 @@
 
 <p align="center">
   <a href="README.md">简体中文</a> ·
-  <a href="README-en.md">English</a>
+  <a href="README.en.md">English</a>
 </p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/status-Alpha-orange?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/API-unstable-red?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/breaking%20changes-expected-critical?style=for-the-badge">
+</p>
+
+<p align="center">It's still in alpha development, </p>
+
+<p align="center">so there might be updates that could break things and cause data loss.</p>
+
+---
 
 <p align="center">The developer is just a university student. This project is intended only as a small local tool; please be understanding if it falls short.</p>
 
@@ -31,7 +43,7 @@
   <img src="https://img.shields.io/badge/Agent-DeepSeek_Harness-blue?logo=deepseek" alt="Agent DeepSeek Harness">
 </p>
 
-FlowLog is built using MyGo's native UI mode: the interface is described in Go code and rendered by MyGo on the GPU, without loading a WebView.
+FlowLog is built using [MyGo](https://mygo.run)'s native UI mode: the interface is described in Go code and rendered by MyGo on the GPU, without loading a WebView.
 
 The UI follows a Material Design 3-like style: primary colors, container levels, corner radii, and motion are all organized according to MD3 roles.
 
