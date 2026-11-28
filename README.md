@@ -10,8 +10,18 @@
 
 <p align="center">
   <a href="README.md">简体中文</a> ·
-  <a href="README-en.md">English</a>
+  <a href="README.en.md">English</a>
 </p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/status-Alpha-orange?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/API-unstable-red?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/breaking%20changes-expected-critical?style=for-the-badge">
+</p>
+
+<p align="center">目前仍处于 alpha 开发状态，可能会进行破坏性更新导致数据丢失</p>
+
+---
 
 <p align="center">开发者只是个大学生，该项目仅作为本地小工具使用，如有不满，还请见谅</p>
 
